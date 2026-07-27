@@ -38,6 +38,14 @@ async def lifespan(app: FastAPI):
     stt_service = STTService(model_size=settings.whisper_model)
     
     logger.info("Parakeet Backend is ready to accept WebSocket connections.")
+    
+    public_url = os.getenv("PUBLIC_URL", "http://localhost:8000")
+    ws_url = os.getenv("PUBLIC_WS_URL", "ws://localhost:8000/ws/parakeet")
+
+    print("\n" + "🎉 " * 15)
+    print(f"✨ APPLICATION LIVE AT : {public_url}")
+    print(f"⚡ WEBSOCKET ENDPOINT  : {ws_url}")
+    print("🎉 " * 15 + "\n")
     yield
     logger.info("Shutting down Parakeet AI Backend Services.")
 

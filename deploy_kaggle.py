@@ -156,10 +156,8 @@ def launch_deployment():
     public_url = tunnel.public_url
     ws_url = public_url.replace("http://", "ws://").replace("https://", "wss://") + "/ws/parakeet"
 
-    print("\n" + "🎉 " * 15)
-    print(f"✨ APPLICATION LIVE AT : {public_url}")
-    print(f"⚡ WEBSOCKET ENDPOINT  : {ws_url}")
-    print("🎉 " * 15 + "\n")
+    os.environ["PUBLIC_URL"] = public_url
+    os.environ["PUBLIC_WS_URL"] = ws_url
 
     # Step 8: Start FastAPI Uvicorn Server
     uvicorn_cmd = f"{sys.executable} -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
