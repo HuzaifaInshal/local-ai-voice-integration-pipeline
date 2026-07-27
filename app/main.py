@@ -60,9 +60,12 @@ async def health_check():
         "tables_cataloged": len(db_registry.catalog) if db_registry else 0
     }
 
-# Mount client directory as static files if exists
+# Mount client directory static assets (/css, /js)
 if os.path.exists("client"):
-    app.mount("/static", StaticFiles(directory="client"), name="static")
+    if os.path.exists("client/css"):
+        app.mount("/css", StaticFiles(directory="client/css"), name="css")
+    if os.path.exists("client/js"):
+        app.mount("/js", StaticFiles(directory="client/js"), name="js")
 
     @app.get("/")
     async def serve_index():

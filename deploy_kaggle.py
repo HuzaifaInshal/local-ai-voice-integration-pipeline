@@ -1,16 +1,19 @@
 """
 Kaggle Notebook One-Click Deployment Launcher
 ===================================================
-Repository: local-ai-voice-integration-pipeline
+Repository: https://github.com/HuzaifaInshal/local-ai-voice-integration-pipeline
 
-This script handles full environment verification, automatic code sync from GitHub,
-hardware acceleration checks, database seeding, ngrok tunneling, and FastAPI serving.
+Run this single line in a Kaggle Notebook cell:
+!git clone https://github.com/HuzaifaInshal/local-ai-voice-integration-pipeline.git && python3 local-ai-voice-integration-pipeline/deploy_kaggle.py
 """
 
 import sys
 import os
 import time
 import subprocess
+
+REPO_URL = "https://github.com/HuzaifaInshal/local-ai-voice-integration-pipeline.git"
+REPO_DIR = "local-ai-voice-integration-pipeline"
 
 def check_and_install_dependencies():
     """Verify required Python packages are installed, installing missing ones if needed."""
@@ -52,9 +55,18 @@ def check_hardware():
         print("ℹ️ PyTorch not installed. Proceeding with standard hardware detection.")
 
 def sync_latest_github_code():
-    """Auto-pull latest commits from main branch if inside a Git repository."""
+    """Clones or pulls the latest repository code directly from GitHub into Kaggle."""
+    if not os.path.exists(".git"):
+        if os.path.exists(REPO_DIR):
+            os.chdir(REPO_DIR)
+        else:
+            print(f"📥 Repository not found locally. Cloning {REPO_URL}...")
+            subprocess.run(["git", "clone", REPO_URL], check=True)
+            if os.path.exists(REPO_DIR):
+                os.chdir(REPO_DIR)
+
     if os.path.exists(".git"):
-        print("🔄 Checking for latest commits on GitHub (git pull origin main)...")
+        print("🔄 Pulling latest code from GitHub (git pull origin main)...")
         try:
             res = subprocess.run(["git", "pull", "origin", "main"], capture_output=True, text=True, timeout=15)
             if res.returncode == 0:
@@ -65,7 +77,7 @@ def sync_latest_github_code():
             print(f"⚠️ Skipping git pull: {e}")
 
 def cleanup_stale_processes(port: int = 8000):
-    """Kill any background uvicorn server running on the target port to avoid port conflict."""
+    """Kill any background uvicorn server running on target port to avoid conflicts."""
     try:
         subprocess.run(f"fuser -k {port}/tcp", shell=True, capture_output=True)
         time.sleep(1)
@@ -109,14 +121,14 @@ def launch_deployment():
     print("🚀 LOCAL AI VOICE INTEGRATION PIPELINE - KAGGLE DEPLOYMENT")
     print("=" * 65 + "\n")
 
-    # Step 1: Run Dependency Check
+    # Step 1: Clone / Sync Repository Code from GitHub
+    sync_latest_github_code()
+
+    # Step 2: Run Dependency Check
     check_and_install_dependencies()
 
-    # Step 2: Hardware Check
+    # Step 3: Hardware Check
     check_hardware()
-
-    # Step 3: Git Code Sync
-    sync_latest_github_code()
 
     # Step 4: Database Seeding Check
     seed_database()
