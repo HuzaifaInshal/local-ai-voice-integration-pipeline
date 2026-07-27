@@ -1,6 +1,6 @@
-# Parakeet AI: Enterprise Offline AI Banking Voice Assistant
+# Local AI Voice Integration Pipeline
 
-Parakeet is an enterprise-grade, privacy-first, on-premise AI voice assistant tailored for internal banking systems. It listens locally for the wake-word **"Parakeet"** using client-side WebAssembly, streams speech commands over a persistent WebSocket, executes ReAct analytical loops over an internal SQL database, and returns structured data payloads to render visual reports (charts, metrics, tables) on screen.
+An enterprise-grade, privacy-first, on-premise AI voice integration pipeline tailored for local database systems and analytical workflows. It listens locally for wake-words using client-side speech recognition / WebAssembly, streams audio commands over a persistent WebSocket connection, executes ReAct analytical reasoning loops over SQL databases, and returns structured JSON payloads to render interactive visual reports (charts, metrics, tables) on screen.
 
 ---
 
@@ -11,8 +11,8 @@ Parakeet is an enterprise-grade, privacy-first, on-premise AI voice assistant ta
 │ BROWSER / UI CLIENT                                                                    │
 │                                                                                        │
 │  1. App Launches ──────────► Opens Persistent WebSocket (`ws://localhost:8000/ws/parakeet`)│
-│  2. Mic Active    ──────────► OpenWakeWord (WASM) listens locally in background          │
-│  3. Wake-Word Detected ─────► Records 4s buffer & sends binary bytes over EXISTING WS  │
+│  2. Mic Active    ──────────► Background Wake-Word listener actively monitors mic      │
+│  3. Wake-Word Detected ─────► Records VAD audio buffer & sends binary bytes over WS    │
 └─────────────────────────────────────────┬──────────────────────────────────────────────┘
                                           │ Binary Audio Buffer (over open WS)
 ┌─────────────────────────────────────────▼──────────────────────────────────────────────┐
@@ -23,7 +23,7 @@ Parakeet is an enterprise-grade, privacy-first, on-premise AI voice assistant ta
 │  6. SQL Sub-Agent   ──► Executes generated SELECT query on DB (with read-only guardrails)│
 │  7. Payload Builder ──► Encodes final answer + Chart/Table JSON format                 │
 │  8. Response       ──► Pushes JSON payload back through the PERSISTENT WS channel      │
-└────────────────────────────────└───────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -31,7 +31,7 @@ Parakeet is an enterprise-grade, privacy-first, on-premise AI voice assistant ta
 ## 📁 Repository Structure
 
 ```text
-ai-voice-studio/
+local-ai-voice-integration-pipeline/
 ├── app/
 │   ├── main.py                     # FastAPI app entrypoint, lifespan manager, WS handler
 │   ├── config.py                   # Pydantic BaseSettings config & env parser
@@ -58,10 +58,11 @@ ai-voice-studio/
 │   └── js/
 │       ├── app.js                  # Main client controller & WS state management
 │       ├── chart_renderer.js       # Dynamic UI chart & table renderer (Chart.js)
-│       └── wakeword.js             # Wake-word listener module & audio buffer streamer
+│       └── wakeword.js             # Wake-word listener module & VAD recorder
 ├── data/
 │   ├── banking.db                  # Pre-seeded SQLite mock database
 │   └── seed_db.py                  # Database generation & seeding script
+├── deploy_kaggle.py                # Kaggle GPU notebook deployment launcher
 ├── tests/                          # Automated unit test suite
 ├── requirements.txt
 ├── .env.example
@@ -76,8 +77,8 @@ ai-voice-studio/
 
 ```bash
 # Clone repository
-git clone <repo-url>
-cd ai-voice-studio
+git clone https://github.com/HuzaifaInshal/local-ai-voice-integration-pipeline.git
+cd local-ai-voice-integration-pipeline
 
 # Create virtual environment
 python3 -m venv venv
@@ -93,7 +94,7 @@ cp .env.example .env
 ### 2. Seed Mock Database
 
 ```bash
-python data/seed_db.py
+python3 data/seed_db.py
 ```
 
 ### 3. Run Development Server
@@ -106,8 +107,21 @@ Access the UI Dashboard at `http://localhost:8000`.
 
 ---
 
+## ☁️ Deploying on Kaggle Notebook (with ngrok)
+
+For GPU acceleration and public hosting via ngrok tunnel:
+
+1. Enable **GPU T4** and **Internet: ON** in Kaggle notebook settings.
+2. Add your ngrok token to Kaggle **Add-ons ➔ Secrets** as `NGROK_AUTH_TOKEN`.
+3. Run `deploy_kaggle.py` inside Kaggle cell:
+   ```python
+   !python3 deploy_kaggle.py
+   ```
+
+---
+
 ## 🔒 Security Guardrails
 
-Parakeet enforces strict read-only database interaction:
+The system enforces strict read-only database interaction:
 - Queries containing data-modifying keywords (`UPDATE`, `DELETE`, `DROP`, `INSERT`, `ALTER`, `TRUNCATE`, `GRANT`, `REVOKE`) are rejected immediately by `app/agent/tools/sanitize.py`.
-- SQL tools operate strictly through parameterized SQLAlchemy sessions.
+- SQL tools operate strictly through read-only parameterized sessions.
