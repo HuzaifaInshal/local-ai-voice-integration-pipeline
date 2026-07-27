@@ -91,7 +91,11 @@ async def persistent_websocket_endpoint(websocket: WebSocket):
             if not user_text.strip():
                 continue
 
-            await websocket.send_json({"type": "status", "state": "processing"})
+            await websocket.send_json({
+                "type": "status",
+                "state": "processing",
+                "speak": "Sure, let me read the essentials from the database."
+            })
 
             # Execute LangGraph ReAct Workflow
             try:

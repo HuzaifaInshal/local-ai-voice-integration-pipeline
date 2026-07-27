@@ -100,14 +100,21 @@ document.addEventListener('DOMContentLoaded', () => {
             transcriptBox.innerText = `Heard: "${data.text}"`;
         } else if (data.type === 'status') {
             statusDot.className = 'status-dot thinking';
-            statusText.innerText = '🧠 Analyzing query with ReAct AI...';
+            statusText.innerText = '🧠 Reading database essentials...';
+            if (data.speak) {
+                speakText(data.speak);
+            }
         } else if (data.type === 'final_result') {
             statusDot.className = 'status-dot online';
             statusText.innerText = 'System Ready.';
             responseCard.innerText = data.content || 'Analysis complete.';
             
-            // Speak response text aloud via TTS voice
-            speakText(data.content || '');
+            // Speak clean summary aloud (do not read raw table list word-for-word)
+            let speakableSummary = data.content || 'Here is the summary.';
+            if (speakableSummary.includes('|') || speakableSummary.includes('- **') || speakableSummary.length > 150) {
+                speakableSummary = "Here is the information from the database listed on screen.";
+            }
+            speakText(speakableSummary);
 
             // Render visual payload (charts, tables, metric cards)
             if (data.payload && Object.keys(data.payload).length > 0) {
