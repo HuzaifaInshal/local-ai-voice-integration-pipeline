@@ -21,9 +21,10 @@ def check_and_install_dependencies():
         ("pyngrok", "pyngrok"),
         ("uvicorn", "uvicorn"),
         ("faster_whisper", "faster-whisper"),
+        ("transformers", "transformers"),
+        ("accelerate", "accelerate"),
         ("langchain", "langchain"),
         ("langchain_core", "langchain-core"),
-        ("langchain_openai", "langchain-openai"),
         ("langgraph", "langgraph"),
         ("sqlalchemy", "sqlalchemy"),
         ("pydantic_settings", "pydantic-settings"),
@@ -48,7 +49,8 @@ def check_hardware():
         import torch
         if torch.cuda.is_available():
             device_name = torch.cuda.get_device_name(0)
-            print(f"⚡ GPU Acceleration Active: {device_name}")
+            vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+            print(f"⚡ GPU Acceleration Active: {device_name} ({vram_gb:.1f} GB VRAM)")
         else:
             print("⚠️ WARNING: CUDA GPU not detected. Running on CPU (Make sure Kaggle Accelerator is set to GPU T4).")
     except ImportError:
@@ -96,7 +98,6 @@ def seed_database():
 def get_ngrok_token() -> str:
     """Retrieves NGROK_AUTH_TOKEN from Kaggle User Secrets or environment variables."""
     token = None
-    # 1. Try Kaggle Secrets
     try:
         from kaggle_secrets import UserSecretsClient
         user_secrets = UserSecretsClient()
@@ -107,7 +108,6 @@ def get_ngrok_token() -> str:
     except Exception:
         pass
 
-    # 2. Fallback to OS environment
     token = os.environ.get("NGROK_AUTH_TOKEN") or os.environ.get("NGROK_AUTHTOKEN")
     if token:
         print("🔑 Loaded NGROK_AUTH_TOKEN from Environment Variables.")
@@ -116,9 +116,9 @@ def get_ngrok_token() -> str:
     return ""
 
 def launch_deployment():
-    """Main execution entrypoint with complete checks and balances."""
+    """Main execution entrypoint with complete GPU checks and self-contained server launch."""
     print("\n" + "=" * 65)
-    print("🚀 LOCAL AI VOICE INTEGRATION PIPELINE - KAGGLE DEPLOYMENT")
+    print("🚀 LOCAL AI VOICE INTEGRATION PIPELINE - KAGGLE GPU DEPLOYMENT")
     print("=" * 65 + "\n")
 
     # Step 1: Clone / Sync Repository Code from GitHub

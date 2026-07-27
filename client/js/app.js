@@ -14,6 +14,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const textForm = document.getElementById('textForm');
     const textInput = document.getElementById('textInput');
 
+    // Speech Synthesis TTS Voice Engine
+    function speakText(text) {
+        if (!('speechSynthesis' in window)) return;
+        
+        window.speechSynthesis.cancel();
+        const cleanText = text.replace(/```json[\s\S]*?```/g, '').replace(/[*_#`]/g, '').trim();
+        if (!cleanText) return;
+
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = 1.05;
+        utterance.pitch = 1.0;
+        
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Samantha')));
+        if (preferredVoice) {
+            utterance.voice = preferredVoice;
+        }
+
+        utterance.onstart = () => {
+            statusDot.className = 'status-dot online';
+            statusText.innerText = '🔊 Speaking response...';
+        };
+
+        utterance.onend = () => {
+            statusDot.className = 'status-dot online';
+            statusText.innerText = 'System Ready. Say "Parakeet"';
+        };
+
+        window.speechSynthesis.speak(utterance);
+    }
+
     // 1. Establish persistent WebSocket connection
     function connect() {
         statusText.innerText = 'Connecting to backend...';
@@ -41,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // 2. Initialize Microphone & Wake-word Listener
+    // 2. Initialize Microphone & Hands-Free Wake-word Listener
     async function initMic() {
         wakeWordListener = new WakeWordListener(
             (audioBuffer) => {
@@ -52,10 +83,10 @@ document.addEventListener('DOMContentLoaded', () => {
             (state) => {
                 if (state === 'listening') {
                     micBtn.classList.add('listening');
-                    statusText.innerText = 'Listening to voice command...';
+                    statusText.innerText = '🎙️ Listening to command...';
                 } else if (state === 'idle') {
                     micBtn.classList.remove('listening');
-                    statusText.innerText = 'Processing command...';
+                    statusText.innerText = '⚡ Processing command...';
                 }
             },
             'parakeet'
@@ -69,12 +100,16 @@ document.addEventListener('DOMContentLoaded', () => {
             transcriptBox.innerText = `Heard: "${data.text}"`;
         } else if (data.type === 'status') {
             statusDot.className = 'status-dot thinking';
-            statusText.innerText = 'Parakeet is analyzing...';
+            statusText.innerText = '🧠 Analyzing query with ReAct AI...';
         } else if (data.type === 'final_result') {
             statusDot.className = 'status-dot online';
             statusText.innerText = 'System Ready.';
             responseCard.innerText = data.content || 'Analysis complete.';
             
+            // Speak response text aloud via TTS voice
+            speakText(data.content || '');
+
+            // Render visual payload (charts, tables, metric cards)
             if (data.payload && Object.keys(data.payload).length > 0) {
                 chartRenderer.render(data.payload);
             }
@@ -82,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
             statusDot.className = 'status-dot';
             statusText.innerText = 'Execution Error';
             responseCard.innerText = `Error: ${data.message}`;
+            speakText(`Execution Error: ${data.message}`);
         }
     }
 
@@ -102,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Chip prompt click handlers
+    // Quick prompt chip triggers
     document.querySelectorAll('.chip').forEach(chip => {
         chip.addEventListener('click', () => {
             const promptText = chip.dataset.prompt;
@@ -110,6 +146,11 @@ document.addEventListener('DOMContentLoaded', () => {
             textForm.dispatchEvent(new Event('submit'));
         });
     });
+
+    // Warmup SpeechSynthesis voices
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
 
     connect();
 });
