@@ -102,14 +102,47 @@ async def persistent_websocket_endpoint(websocket: WebSocket):
             await websocket.send_json({
                 "type": "status",
                 "state": "processing",
-                "speak": "Sure, let me read the essentials from the database."
+                "speak": "Let me look into that for you."
             })
 
-            # Execute LangGraph ReAct Workflow
+            # Execute LangGraph ReAct Workflow with real-time status updates
             try:
                 initial_state = {"messages": [HumanMessage(content=user_text)]}
-                result = agent_executor.invoke(initial_state)
-                raw_response = result["messages"][-1].content
+                raw_response = ""
+
+                async for event in agent_executor.astream(initial_state):
+                    for node_name, node_output in event.items():
+                        if node_name == "agent":
+                            messages = node_output.get("messages", [])
+                            if messages:
+                                last_msg = messages[-1]
+                                if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+                                    tool_call = last_msg.tool_calls[0]
+                                    tool_name = tool_call.get("name", "")
+                                    if tool_name == "execute_sql_query":
+                                        user_msg = "Fetching database to construct result..."
+                                        speak_msg = "Fetching database to construct result."
+                                    else:
+                                        user_msg = f"Running {tool_name} in background to construct result..."
+                                        speak_msg = f"Running {tool_name}."
+
+                                    await websocket.send_json({
+                                        "type": "status",
+                                        "state": "executing_tool",
+                                        "tool": tool_name,
+                                        "message": user_msg,
+                                        "speak": speak_msg
+                                    })
+                                else:
+                                    raw_response = last_msg.content or ""
+                        elif node_name == "tools":
+                            await websocket.send_json({
+                                "type": "status",
+                                "state": "analyzing",
+                                "message": "Analyzing retrieved records...",
+                                "speak": "Analyzing the retrieved data."
+                            })
+
                 clean_text, payload = extract_json_payload(raw_response)
 
                 await websocket.send_json({

@@ -5,22 +5,84 @@ document.addEventListener('DOMContentLoaded', () => {
     let socket = null;
     let wakeWordListener = null;
     let chartRenderer = new UIChartRenderer('visualOutput');
+    let visualizer = new MusicVisualizer('musicVisualizer');
 
     const statusDot = document.getElementById('statusDot');
     const statusText = document.getElementById('statusText');
     const micBtn = document.getElementById('micBtn');
     const transcriptBox = document.getElementById('transcriptBox');
     const responseCard = document.getElementById('responseCard');
-    const textForm = document.getElementById('textForm');
-    const textInput = document.getElementById('textInput');
+    const visualizerStateTag = document.getElementById('visualizerState');
+
+    function setVisualState(state) {
+        if (visualizer) visualizer.setState(state);
+        if (visualizerStateTag) {
+            visualizerStateTag.innerText = state;
+            visualizerStateTag.className = `visualizer-status-tag ${state}`;
+        }
+    }
+
+    // Markdown Renderer Helper
+    function renderMarkdown(text) {
+        if (!text) return '';
+        if (window.marked && typeof window.marked.parse === 'function') {
+            return window.marked.parse(text);
+        }
+        // Fallback markdown parsing
+        let html = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+        html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+        html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+        html = html.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+        html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+
+        html = html.replace(/^\s*[-*+]\s+(.*$)/gim, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\/li>)/gim, '<ul>$1</ul>');
+
+        html = html.split('\n\n').map(p => {
+            if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<li')) return p;
+            return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+        }).join('');
+
+        return html;
+    }
+
+    // Speech Sanitizer helper for smooth natural TTS
+    function sanitizeTextForSpeech(text) {
+        if (!text) return '';
+        let clean = text.replace(/```json[\s\S]*?```/g, ''); // Strip JSON code blocks
+        clean = clean.replace(/```[\s\S]*?```/g, '');       // Strip generic code blocks
+        clean = clean.replace(/`([^`]+)`/g, '$1');          // Strip inline code backticks
+        clean = clean.replace(/\*\*([^*]+)\*\*/g, '$1');    // Strip bold **
+        clean = clean.replace(/\*([^*]+)\*/g, '$1');        // Strip italic *
+        clean = clean.replace(/__([^_]+)__/g, '$1');        // Strip bold __
+        clean = clean.replace(/_([^_]+)_/g, '$1');          // Strip italic _
+        clean = clean.replace(/^#+\s+/gm, '');              // Strip headings #
+        clean = clean.replace(/^[\s]*[-*+]\s+/gm, '. ');    // Convert list bullets to sentence breaks
+        clean = clean.replace(/\|/g, ' ');                  // Strip table pipes
+        clean = clean.replace(/\n+/g, '. ');                 // Replace newlines with sentence pauses
+        clean = clean.replace(/\.\s*\./g, '.');             // Remove duplicate periods
+        return clean.trim();
+    }
 
     // Speech Synthesis TTS Voice Engine
-    function speakText(text) {
+    function speakText(text, isFinal = false) {
         if (!('speechSynthesis' in window)) return;
         
-        window.speechSynthesis.cancel();
-        const cleanText = text.replace(/```json[\s\S]*?```/g, '').replace(/[*_#`]/g, '').trim();
+        const cleanText = sanitizeTextForSpeech(text);
         if (!cleanText) return;
+
+        if (isFinal && window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+        }
 
         const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.rate = 1.05;
@@ -35,11 +97,15 @@ document.addEventListener('DOMContentLoaded', () => {
         utterance.onstart = () => {
             statusDot.className = 'status-dot online';
             statusText.innerText = '🔊 Speaking response...';
+            setVisualState('speaking');
         };
 
         utterance.onend = () => {
-            statusDot.className = 'status-dot online';
-            statusText.innerText = 'System Ready. Say "Parakeet"';
+            if (!window.speechSynthesis.speaking) {
+                statusDot.className = 'status-dot online';
+                statusText.innerText = 'System Ready. Say "Parakeet"';
+                setVisualState('idle');
+            }
         };
 
         window.speechSynthesis.speak(utterance);
@@ -64,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.onclose = () => {
             statusDot.className = 'status-dot';
             statusText.innerText = 'Disconnected. Retrying in 3s...';
+            setVisualState('idle');
             setTimeout(connect, 3000);
         };
 
@@ -84,37 +151,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (state === 'listening') {
                     micBtn.classList.add('listening');
                     statusText.innerText = '🎙️ Listening to command...';
+                    setVisualState('listening');
                 } else if (state === 'idle') {
                     micBtn.classList.remove('listening');
                     statusText.innerText = '⚡ Processing command...';
+                    setVisualState('thinking');
                 }
             },
             'parakeet'
         );
         await wakeWordListener.initMicrophone();
+        if (wakeWordListener.analyser) {
+            visualizer.setAnalyser(wakeWordListener.analyser);
+        }
     }
 
     // 3. Handle Server Inbound WebSocket Messages
     function handleServerMessage(data) {
         if (data.type === 'transcription') {
-            transcriptBox.innerText = `Heard: "${data.text}"`;
+            transcriptBox.innerHTML = `<strong>Heard:</strong> "${data.text}"`;
         } else if (data.type === 'status') {
             statusDot.className = 'status-dot thinking';
-            statusText.innerText = '🧠 Reading database essentials...';
+            setVisualState('thinking');
+            const statusDisplay = data.message ? `⚡ ${data.message}` :
+                                 (data.state === 'executing_tool' ? '⚡ Fetching database to construct result...' :
+                                  data.state === 'analyzing' ? '🧠 Processing retrieved records...' :
+                                  '🧠 Reading database essentials...');
+            statusText.innerText = statusDisplay;
             if (data.speak) {
-                speakText(data.speak);
+                speakText(data.speak, false);
             }
         } else if (data.type === 'final_result') {
             statusDot.className = 'status-dot online';
             statusText.innerText = 'System Ready.';
-            responseCard.innerText = data.content || 'Analysis complete.';
             
-            // Speak clean summary aloud (do not read raw table list word-for-word)
-            let speakableSummary = data.content || 'Here is the summary.';
-            if (speakableSummary.includes('|') || speakableSummary.includes('- **') || speakableSummary.length > 150) {
-                speakableSummary = "Here is the information from the database listed on screen.";
+            // Render rich Markdown response
+            responseCard.innerHTML = renderMarkdown(data.content || 'Analysis complete.');
+            
+            // Speak clean summary aloud naturally
+            if (data.content) {
+                speakText(data.content, true);
+            } else {
+                setVisualState('idle');
             }
-            speakText(speakableSummary);
 
             // Render visual payload (charts, tables, metric cards)
             if (data.payload && Object.keys(data.payload).length > 0) {
@@ -123,8 +202,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (data.type === 'error') {
             statusDot.className = 'status-dot';
             statusText.innerText = 'Execution Error';
-            responseCard.innerText = `Error: ${data.message}`;
-            speakText(`Execution Error: ${data.message}`);
+            setVisualState('idle');
+            responseCard.innerHTML = renderMarkdown(`**Execution Error:** ${data.message}`);
+            speakText(`Execution Error: ${data.message}`, true);
         }
     }
 
@@ -135,28 +215,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    textForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const text = textInput.value.trim();
-        if (text && socket && socket.readyState === WebSocket.OPEN) {
-            transcriptBox.innerText = `Sent: "${text}"`;
-            socket.send(JSON.stringify({ text: text }));
-            textInput.value = '';
-        }
-    });
-
-    // Quick prompt chip triggers
-    document.querySelectorAll('.chip').forEach(chip => {
-        chip.addEventListener('click', () => {
-            const promptText = chip.dataset.prompt;
-            textInput.value = promptText;
-            textForm.dispatchEvent(new Event('submit'));
-        });
-    });
-
     // Warmup SpeechSynthesis voices
     if ('speechSynthesis' in window) {
         window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
+
+    // Initial render of welcome message markdown
+    if (responseCard) {
+        responseCard.innerHTML = renderMarkdown(responseCard.innerText || 'Welcome to Parakeet Enterprise Assistant.');
     }
 
     connect();

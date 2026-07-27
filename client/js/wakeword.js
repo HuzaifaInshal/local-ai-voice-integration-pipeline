@@ -38,6 +38,7 @@ class WakeWordListener {
                 setTimeout(() => this.startWakeWordDetection(), 1000);
             };
 
+            this.setupAudioContext();
             // Start active hands-free wake-word detection
             this.startWakeWordDetection();
             return true;
@@ -45,6 +46,20 @@ class WakeWordListener {
             console.error("Microphone permission denied or unavailable:", err);
             this.onStatusChange('mic_error');
             return false;
+        }
+    }
+
+    setupAudioContext() {
+        if (!this.stream || this.audioContext) return;
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            this.audioContext = new AudioCtx();
+            const source = this.audioContext.createMediaStreamSource(this.stream);
+            this.analyser = this.audioContext.createAnalyser();
+            this.analyser.fftSize = 128;
+            source.connect(this.analyser);
+        } catch (e) {
+            console.warn("AudioContext setup error:", e);
         }
     }
 
@@ -133,12 +148,8 @@ class WakeWordListener {
 
     startVAD(silenceDelayMs, noiseThreshold) {
         try {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            this.audioContext = new AudioCtx();
-            const source = this.audioContext.createMediaStreamSource(this.stream);
-            this.analyser = this.audioContext.createAnalyser();
-            this.analyser.fftSize = 512;
-            source.connect(this.analyser);
+            this.setupAudioContext();
+            if (!this.analyser) return;
 
             const bufferLength = this.analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
@@ -180,10 +191,6 @@ class WakeWordListener {
         if (this.maxSafetyTimeout) {
             clearTimeout(this.maxSafetyTimeout);
             this.maxSafetyTimeout = null;
-        }
-        if (this.audioContext) {
-            this.audioContext.close().catch(() => {});
-            this.audioContext = null;
         }
     }
 
