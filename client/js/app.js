@@ -57,7 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     micBtn.classList.remove('listening');
                     statusText.innerText = 'Processing command...';
                 }
-            }
+            },
+            'parakeet'
         );
         await wakeWordListener.initMicrophone();
     }
@@ -87,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. UI Trigger Events
     micBtn.addEventListener('click', () => {
         if (wakeWordListener) {
-            wakeWordListener.triggerListeningWindow(4000);
+            wakeWordListener.triggerListeningWindow(15000, 1500);
         }
     });
 
