@@ -56,9 +56,16 @@ def launch_on_kaggle(ngrok_authtoken: str, port: int = 8000):
         process.terminate()
 
 if __name__ == "__main__":
-    # Replace with your ngrok token from https://dashboard.ngrok.com
-    TOKEN = os.getenv("NGROK_AUTHTOKEN", "YOUR_NGROK_AUTHTOKEN_HERE")
-    if TOKEN == "YOUR_NGROK_AUTHTOKEN_HERE":
-        print("⚠️ Warning: Please set your NGROK_AUTHTOKEN in environment or pass it to launch_on_kaggle()")
-    else:
-        launch_on_kaggle(TOKEN)
+    NGROK_AUTH_TOKEN = None
+    try:
+        from kaggle_secrets import UserSecretsClient
+        user_secrets = UserSecretsClient()
+        NGROK_AUTH_TOKEN = user_secrets.get_secret("NGROK_AUTH_TOKEN")
+        print("✅ Loaded NGROK_AUTH_TOKEN from Kaggle User Secrets.")
+        launch_on_kaggle(NGROK_AUTH_TOKEN)
+    except Exception as e:
+        print("❌ Failed to load secret from Kaggle User Secrets. Checking environment variables...")
+        NGROK_AUTH_TOKEN = os.environ.get("NGROK_AUTH_TOKEN")
+
+    if not NGROK_AUTH_TOKEN:
+        print("⚠️ WARNING: NGROK_AUTH_TOKEN is not set. Please add it to Add-ons -> Secrets.")
