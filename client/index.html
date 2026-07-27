@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parakeet AI | Enterprise Voice Assistant</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <div class="brand">
+            <div class="brand-icon">P</div>
+            <div>
+                <div class="brand-title">Parakeet Voice Assistant</div>
+                <div class="brand-tag">Offline Banking AI • Privacy Guarded</div>
+            </div>
+        </div>
+        <div class="status-badge">
+            <div id="statusDot" class="status-dot"></div>
+            <span id="statusText">Connecting...</span>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Left: Voice Control & Audio Input -->
+        <section class="glass-card voice-panel">
+            <h3>Voice Command Center</h3>
+            <p class="wake-word-hint">Wake word active: <span class="wake-word-tag">"Parakeet"</span></p>
+            
+            <div class="mic-button-wrapper">
+                <button id="micBtn" class="mic-btn" title="Click or say 'Parakeet' to talk">
+                    🎤
+                </button>
+            </div>
+
+            <div id="transcriptBox" class="transcript-box">
+                <em style="color:#94a3b8;">Awaiting voice or text input...</em>
+            </div>
+
+            <form id="textForm" class="text-input-form">
+                <input type="text" id="textInput" class="text-input" placeholder="Type query (e.g. show account balances)..." required />
+                <button type="submit" class="send-btn">Send</button>
+            </form>
+
+            <div style="width:100%; text-align:left; margin-top:0.5rem;">
+                <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:0.4rem;">Sample Inquiries:</p>
+                <div class="suggestions">
+                    <span class="chip" data-prompt="What is the total account balance across all clients?">Total Balance</span>
+                    <span class="chip" data-prompt="Show all active commercial loans with outstanding balances">Active Loans</span>
+                    <span class="chip" data-prompt="List recent credit transactions above $50,000">Large Credits</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right: Executive Analytical Output & Visualizations -->
+        <section class="glass-card dashboard-panel">
+            <h3>Executive Intelligence Dashboard</h3>
+            
+            <div id="responseCard" class="response-card">
+                Welcome to Parakeet Enterprise Assistant. Activate voice mode or submit a query to generate data insights.
+            </div>
+
+            <div id="visualOutput"></div>
+        </section>
+    </main>
+
+    <script src="js/wakeword.js"></script>
+    <script src="js/chart_renderer.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
