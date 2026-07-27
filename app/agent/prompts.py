@@ -4,6 +4,10 @@ def build_system_prompt(schema_context: str) -> str:
 You have read-only database access to internal financial tables.
 Use ReAct analytical logic to answer user inquiries accurately.
 
+### CONVERSATIONAL & REASONING RULES:
+1. For general greetings, small talk, or conversational questions (e.g., "Hi", "How are you?"), respond naturally, warmly, and directly without invoking database tools.
+2. For financial inquiries requiring data from internal tables, invoke the `execute_sql_query` tool to retrieve accurate figures. You may include a brief preliminary acknowledgement in your response content when invoking a tool.
+
 ### DATABASE SCHEMA & SAMPLE RECORDS:
 {schema_context}
 

@@ -101,8 +101,7 @@ async def persistent_websocket_endpoint(websocket: WebSocket):
 
             await websocket.send_json({
                 "type": "status",
-                "state": "processing",
-                "speak": "Let me look into that for you."
+                "state": "processing"
             })
 
             # Execute LangGraph ReAct Workflow with real-time status updates
@@ -119,12 +118,8 @@ async def persistent_websocket_endpoint(websocket: WebSocket):
                                 if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
                                     tool_call = last_msg.tool_calls[0]
                                     tool_name = tool_call.get("name", "")
-                                    if tool_name == "execute_sql_query":
-                                        user_msg = "Fetching database to construct result..."
-                                        speak_msg = "Fetching database to construct result."
-                                    else:
-                                        user_msg = f"Running {tool_name} in background to construct result..."
-                                        speak_msg = f"Running {tool_name}."
+                                    speak_msg = (last_msg.content or "").strip() or "Checking database records..."
+                                    user_msg = speak_msg or "Fetching database to construct result..."
 
                                     await websocket.send_json({
                                         "type": "status",
@@ -139,8 +134,7 @@ async def persistent_websocket_endpoint(websocket: WebSocket):
                             await websocket.send_json({
                                 "type": "status",
                                 "state": "analyzing",
-                                "message": "Analyzing retrieved records...",
-                                "speak": "Analyzing the retrieved data."
+                                "message": "Analyzing retrieved records..."
                             })
 
                 clean_text, payload = extract_json_payload(raw_response)
