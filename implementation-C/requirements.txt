@@ -1,0 +1,6 @@
+vllm>=0.8.5
+fastapi
+uvicorn[standard]
+pyngrok
+openai>=1.30.0
+requests
