@@ -1,0 +1,240 @@
+:root {
+    --bg-color: #ffffff;
+    --text-primary: #1f1f1f;
+    --text-secondary: #5f6368;
+    --text-muted: #80868b;
+    --pill-bg: #e8f0fe;
+    --pill-text: #1967d2;
+    --blue-accent: #4285f4;
+    --green-accent: #34a853;
+    --yellow-accent: #fbbc05;
+    --red-accent: #ea4335;
+    --card-bg: #f8f9fa;
+    --border-color: #e0e0e0;
+    --font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-family);
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-x: hidden;
+}
+
+.app-viewport {
+    width: 100%;
+    max-width: 480px;
+    height: 100vh;
+    max-height: 900px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 1.5rem 1.5rem 1rem 1.5rem;
+    position: relative;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+    border-radius: 24px;
+}
+
+/* Top Navigation Bar */
+.top-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.nav-icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    border-radius: 50%;
+}
+
+.google-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--green-accent);
+    display: inline-block;
+    box-shadow: 0 0 8px rgba(52, 168, 83, 0.5);
+    transition: background-color 0.3s ease;
+}
+
+.status-dot.listening {
+    background-color: var(--blue-accent);
+    animation: pulseDot 1.2s infinite alternate;
+}
+
+@keyframes pulseDot {
+    0% { transform: scale(0.9); opacity: 0.7; }
+    100% { transform: scale(1.2); opacity: 1; }
+}
+
+/* Main Content Section */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 1.8rem;
+    width: 100%;
+    overflow-y: auto;
+    padding: 1rem 0;
+}
+
+/* Real-Time Transcript Display (Directly matching UI reference) */
+.transcript-wrapper {
+    width: 100%;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.transcript-display {
+    font-size: 2.2rem;
+    font-weight: 400;
+    color: var(--text-primary);
+    line-height: 1.35;
+    letter-spacing: -0.5px;
+    word-break: break-word;
+    transition: all 0.2s ease;
+}
+
+.wake-word-caption {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+}
+
+/* 4-Bar Capsule Equalizer Canvas */
+.visualizer-container {
+    width: 100%;
+    height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#capsuleVisualizer {
+    width: 240px;
+    height: 80px;
+    display: block;
+}
+
+/* Auto Search Pill Badge */
+.pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: var(--pill-bg);
+    color: var(--pill-text);
+    padding: 0.55rem 1.2rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+/* Stream Output Card (Streaming Text Fade-In Animation) */
+.stream-output-card {
+    width: 100%;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 1.2rem;
+    text-align: left;
+    max-height: 350px;
+    overflow-y: auto;
+    transition: opacity 0.4s ease;
+}
+
+.stream-output-card.hidden {
+    display: none;
+}
+
+.stream-text-content {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+}
+
+/* Smooth Fade-In Animation for Streamed Tokens */
+.token-span {
+    display: inline;
+    animation: fadeInToken 0.25s ease-out forwards;
+}
+
+@keyframes fadeInToken {
+    from {
+        opacity: 0;
+        transform: translateY(2px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.visual-output {
+    margin-top: 1rem;
+}
+
+/* Minimal Bottom Navigation Bar */
+.bottom-nav {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    width: 100%;
+    padding-top: 0.8rem;
+    border-top: 1px solid #f1f3f4;
+}
+
+.nav-item {
+    background: none;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0.4rem 0.8rem;
+    border-radius: 16px;
+    transition: all 0.2s ease;
+}
+
+.nav-item.active {
+    color: var(--pill-text);
+    background-color: var(--pill-bg);
+    font-weight: 600;
+}
+
+.nav-item:hover {
+    color: var(--text-primary);
+}

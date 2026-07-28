@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alfa AI Assistant</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-viewport">
+        <!-- Minimal Top Bar with Google Icon -->
+        <header class="top-nav">
+            <button class="nav-icon-btn" aria-label="Back">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <div class="google-logo">
+                <svg width="24" height="24" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+            </div>
+            <div class="status-indicator">
+                <span id="statusDot" class="status-dot"></span>
+            </div>
+        </header>
+
+        <!-- Main Display Content -->
+        <main class="main-content">
+            <!-- Dynamic Real-Time Transcription Text -->
+            <div class="transcript-wrapper">
+                <div id="transcriptDisplay" class="transcript-display">Listening...</div>
+                <div class="wake-word-caption">Say <strong>"Hey Alfa"</strong> to start</div>
+            </div>
+
+            <!-- Google Assistant 4-Bar Capsule Equalizer -->
+            <div class="visualizer-container">
+                <canvas id="capsuleVisualizer" width="280" height="80"></canvas>
+            </div>
+
+            <!-- Auto Search Status Pill -->
+            <div class="pill-badge">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span id="pillStatusText">Auto search is on</span>
+            </div>
+
+            <!-- Streamed AI Output Area (First-Token Streaming with Fade-In) -->
+            <div id="streamOutputCard" class="stream-output-card hidden">
+                <div id="streamTextContent" class="stream-text-content"></div>
+                <div id="visualOutput" class="visual-output"></div>
+            </div>
+        </main>
+
+        <!-- Minimal Google Assistant Bottom Navigation -->
+        <footer class="bottom-nav">
+            <button class="nav-item active">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <span>Search</span>
+            </button>
+            <button class="nav-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
+                <span>AI mode</span>
+            </button>
+            <button class="nav-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>
+                <span>Live</span>
+            </button>
+            <button class="nav-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                <span>Song</span>
+            </button>
+        </footer>
+    </div>
+
+    <script src="js/visualizer.js"></script>
+    <script src="js/wakeword.js"></script>
+    <script src="js/chart_renderer.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
