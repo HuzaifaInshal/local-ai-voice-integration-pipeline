@@ -3,13 +3,9 @@
     --text-primary: #1f1f1f;
     --text-secondary: #5f6368;
     --text-muted: #80868b;
-    --pill-bg: #e8f0fe;
-    --pill-text: #1967d2;
-    --blue-accent: #4285f4;
-    --green-accent: #34a853;
-    --yellow-accent: #fbbc05;
-    --red-accent: #ea4335;
-    --card-bg: #f8f9fa;
+    --user-bubble-bg: #e8f0fe;
+    --user-bubble-text: #1967d2;
+    --ai-card-bg: #f8f9fa;
     --border-color: #e0e0e0;
     --font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
@@ -33,86 +29,41 @@ body {
 
 .app-viewport {
     width: 100%;
-    max-width: 480px;
+    max-width: 600px;
     height: 100vh;
     max-height: 900px;
     background: #ffffff;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    padding: 1.5rem 1.5rem 1rem 1.5rem;
     position: relative;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08);
     border-radius: 24px;
+    overflow: hidden;
 }
 
-/* Top Navigation Bar */
-.top-nav {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-}
-
-.nav-icon-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 0.5rem;
-    display: flex;
-    align-items: center;
-    border-radius: 50%;
-}
-
-.google-logo {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.status-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background-color: var(--green-accent);
-    display: inline-block;
-    box-shadow: 0 0 8px rgba(52, 168, 83, 0.5);
-    transition: background-color 0.3s ease;
-}
-
-.status-dot.listening {
-    background-color: var(--blue-accent);
-    animation: pulseDot 1.2s infinite alternate;
-}
-
-@keyframes pulseDot {
-    0% { transform: scale(0.9); opacity: 0.7; }
-    100% { transform: scale(1.2); opacity: 1; }
-}
-
-/* Main Content Section */
-.main-content {
+/* Screen 1: Initial Centered Wake-Word Screen */
+.screen-initial {
     flex: 1;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    text-align: center;
-    gap: 1.8rem;
-    width: 100%;
-    overflow-y: auto;
-    padding: 1rem 0;
+    padding: 2rem;
+    transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
-/* Real-Time Transcript Display (Directly matching UI reference) */
-.transcript-wrapper {
-    width: 100%;
-    min-height: 80px;
+.screen-initial.hidden {
+    display: none;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.center-content {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    text-align: center;
+    gap: 2.5rem;
+    width: 100%;
 }
 
 .transcript-display {
@@ -122,71 +73,98 @@ body {
     line-height: 1.35;
     letter-spacing: -0.5px;
     word-break: break-word;
-    transition: all 0.2s ease;
-}
-
-.wake-word-caption {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    margin-top: 0.5rem;
-}
-
-/* 4-Bar Capsule Equalizer Canvas */
-.visualizer-container {
-    width: 100%;
-    height: 90px;
+    min-height: 90px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
+.visualizer-wrapper {
+    width: 100%;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
 #capsuleVisualizer {
     width: 240px;
-    height: 80px;
+    height: 70px;
     display: block;
 }
 
-/* Auto Search Pill Badge */
-.pill-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    background-color: var(--pill-bg);
-    color: var(--pill-text);
-    padding: 0.55rem 1.2rem;
-    border-radius: 20px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    transition: all 0.3s ease;
+/* Screen 2: Full-Screen Results Mode */
+.screen-results {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: #ffffff;
+    animation: fadeInScreen 0.4s ease forwards;
 }
 
-/* Stream Output Card (Streaming Text Fade-In Animation) */
-.stream-output-card {
-    width: 100%;
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    padding: 1.2rem;
-    text-align: left;
-    max-height: 350px;
-    overflow-y: auto;
-    transition: opacity 0.4s ease;
-}
-
-.stream-output-card.hidden {
+.screen-results.hidden {
     display: none;
 }
 
-.stream-text-content {
+@keyframes fadeInScreen {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Full-Screen Scrollable Conversation Feed */
+.conversation-feed {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem 1.5rem 120px 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.8rem;
+    scroll-behavior: smooth;
+}
+
+/* Turn Card (User query + AI Streaming response) */
+.turn-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    width: 100%;
+    animation: slideUpTurn 0.3s ease-out forwards;
+}
+
+@keyframes slideUpTurn {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.user-query-bubble {
+    align-self: flex-start;
+    background-color: var(--user-bubble-bg);
+    color: var(--user-bubble-text);
+    padding: 0.8rem 1.25rem;
+    border-radius: 20px;
+    font-size: 1.1rem;
+    font-weight: 500;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.ai-response-box {
+    width: 100%;
+    background-color: var(--ai-card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    padding: 1.25rem;
     font-size: 1.05rem;
-    line-height: 1.6;
+    line-height: 1.65;
     color: var(--text-primary);
 }
 
-/* Smooth Fade-In Animation for Streamed Tokens */
+/* First-Token Streaming Fade-In Animation */
 .token-span {
     display: inline;
-    animation: fadeInToken 0.25s ease-out forwards;
+    animation: fadeInToken 0.2s ease-out forwards;
 }
 
 @keyframes fadeInToken {
@@ -200,41 +178,45 @@ body {
     }
 }
 
-.visual-output {
+.visual-payload-container {
     margin-top: 1rem;
 }
 
-/* Minimal Bottom Navigation Bar */
-.bottom-nav {
+/* Compact Bottom Control Bar in Screen 2 */
+.bottom-control-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border-color);
+    padding: 0.8rem 1.5rem;
     display: flex;
-    justify-content: space-around;
+    justify-content: space-between;
     align-items: center;
-    width: 100%;
-    padding-top: 0.8rem;
-    border-top: 1px solid #f1f3f4;
+    z-index: 50;
+    height: 80px;
 }
 
-.nav-item {
-    background: none;
-    border: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.3rem;
+.bottom-transcript-text {
+    font-size: 1rem;
     color: var(--text-secondary);
-    font-size: 0.75rem;
+    font-weight: 400;
+    max-width: 60%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bottom-visualizer-wrapper {
     cursor: pointer;
-    padding: 0.4rem 0.8rem;
-    border-radius: 16px;
-    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
 }
 
-.nav-item.active {
-    color: var(--pill-text);
-    background-color: var(--pill-bg);
-    font-weight: 600;
-}
-
-.nav-item:hover {
-    color: var(--text-primary);
+#capsuleVisualizerBottom {
+    width: 180px;
+    height: 50px;
+    display: block;
 }

@@ -1,44 +1,23 @@
 class WakeWordListener {
-    constructor(onAudioBufferReady, onStatusChange, wakeWord = "hey alfa") {
-        this.onAudioBufferReady = onAudioBufferReady;
+    constructor(onCommandTextReady, onStatusChange, onInstantTranscript) {
+        this.onCommandTextReady = onCommandTextReady;
         this.onStatusChange = onStatusChange;
-        this.wakeWord = wakeWord.toLowerCase();
-        this.mediaRecorder = null;
-        this.audioChunks = [];
+        this.onInstantTranscript = onInstantTranscript;
+        
         this.isListeningCommand = false;
         this.stream = null;
         this.audioContext = null;
         this.analyser = null;
-        this.vadInterval = null;
-        this.maxSafetyTimeout = null;
         this.recognition = null;
+        this.silenceTimer = null;
+        this.currentCommandText = "";
     }
 
     async initMicrophone() {
         try {
             this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            this.mediaRecorder = new MediaRecorder(this.stream);
-            
-            this.mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    this.audioChunks.push(event.data);
-                }
-            };
-
-            this.mediaRecorder.onstop = async () => {
-                this.stopVAD();
-                const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
-                this.audioChunks = [];
-                const buffer = await audioBlob.arrayBuffer();
-                this.onAudioBufferReady(buffer);
-                this.isListeningCommand = false;
-                this.onStatusChange('idle');
-
-                setTimeout(() => this.startWakeWordDetection(), 1000);
-            };
-
             this.setupAudioContext();
-            this.startWakeWordDetection();
+            this.startContinuousSpeechRecognition();
             return true;
         } catch (err) {
             console.error("Microphone permission denied or unavailable:", err);
@@ -61,18 +40,16 @@ class WakeWordListener {
         }
     }
 
-    startWakeWordDetection() {
+    startContinuousSpeechRecognition() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            console.warn("Web Speech API not supported in this browser. Tap to activate.");
+            console.warn("Web Speech API not supported. Tap to speak.");
             return;
         }
 
-        if (this.isListeningCommand) return;
-
         try {
             if (this.recognition) {
-                this.recognition.abort();
+                try { this.recognition.abort(); } catch (e) {}
             }
 
             this.recognition = new SpeechRecognition();
@@ -81,113 +58,90 @@ class WakeWordListener {
             this.recognition.lang = 'en-US';
 
             this.recognition.onresult = (event) => {
-                if (this.isListeningCommand) return;
+                let fullTranscript = '';
+                let latestInterim = '';
 
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    const transcript = event.results[i][0].transcript.toLowerCase().trim();
-                    console.log("Background listening transcript:", transcript);
+                    const res = event.results[i];
+                    const text = res[0].transcript;
+                    if (res.isFinal) {
+                        fullTranscript += text;
+                    } else {
+                        latestInterim += text;
+                    }
+                }
 
-                    if (transcript.includes("hey alfa") || transcript.includes("hey alpha") || transcript.includes("alfa")) {
-                        console.log(`🎯 Wake-word "Hey Alfa" detected! Activating command recorder...`);
-                        this.stopWakeWordDetection();
-                        this.triggerListeningWindow(15000, 1500);
-                        break;
+                const liveText = (fullTranscript + ' ' + latestInterim).trim();
+
+                // 1. Wake-word Detection when in Idle mode
+                if (!this.isListeningCommand) {
+                    const lowerText = liveText.toLowerCase();
+                    const wakeWordRegex = /\b(hey\s+)?(alfa|alpha|elba|elfa)\b/i;
+
+                    if (wakeWordRegex.test(lowerText)) {
+                        console.log(`🎯 Wake-word detected in live text: "${liveText}"`);
+                        this.startListeningCommand();
+                    }
+                } else {
+                    // 2. Active Command Listening Mode: Instant Word-by-Word Transcript Update
+                    let commandSpeech = liveText;
+                    // Strip leading wake word if present
+                    commandSpeech = commandSpeech.replace(/^.*?\b(hey\s+)?(alfa|alpha|elba|elfa)\b[\s,]*/i, '').trim();
+
+                    if (commandSpeech) {
+                        this.currentCommandText = commandSpeech;
+                        if (this.onInstantTranscript) {
+                            this.onInstantTranscript(commandSpeech);
+                        }
+
+                        // Reset silence auto-submit timer on active speech
+                        this.resetSilenceTimer();
                     }
                 }
             };
 
             this.recognition.onend = () => {
-                if (!this.isListeningCommand && this.recognition) {
-                    try { this.recognition.start(); } catch(e) {}
+                if (this.recognition) {
+                    try { this.recognition.start(); } catch (e) {}
                 }
             };
 
+            this.recognition.onerror = (err) => {
+                console.warn("SpeechRecognition error:", err);
+            };
+
             this.recognition.start();
-            console.log(`👂 Background wake-word listener active for: "${this.wakeWord}"`);
+            console.log("👂 Speech listener active for: Hey Alfa");
         } catch (e) {
-            console.warn("Could not start background wake-word recognition:", e);
+            console.warn("Could not start continuous speech recognition:", e);
         }
     }
 
-    stopWakeWordDetection() {
-        if (this.recognition) {
-            try {
-                this.recognition.onend = null;
-                this.recognition.abort();
-            } catch (e) {}
-            this.recognition = null;
-        }
-    }
-
-    triggerListeningWindow(maxDurationMs = 15000, silenceDelayMs = 1500, noiseThreshold = 0.015) {
-        if (!this.mediaRecorder) return;
-        if (this.isListeningCommand) return;
-
-        this.stopWakeWordDetection();
+    startListeningCommand() {
         this.isListeningCommand = true;
-        this.audioChunks = [];
-        this.mediaRecorder.start();
+        this.currentCommandText = "";
         this.onStatusChange('listening');
-
-        this.startVAD(silenceDelayMs, noiseThreshold);
-
-        this.maxSafetyTimeout = setTimeout(() => {
-            this.stopListening();
-        }, maxDurationMs);
+        this.resetSilenceTimer(2500); // 2.5s silence auto-submit
     }
 
-    startVAD(silenceDelayMs, noiseThreshold) {
-        try {
-            this.setupAudioContext();
-            if (!this.analyser) return;
-
-            const bufferLength = this.analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-
-            let lastSpeechTime = Date.now();
-            let hasSpeechStarted = false;
-
-            this.vadInterval = setInterval(() => {
-                if (!this.isListeningCommand) return;
-
-                this.analyser.getByteFrequencyData(dataArray);
-                let sum = 0;
-                for (let i = 0; i < bufferLength; i++) {
-                    sum += dataArray[i];
-                }
-                const averageVolume = sum / bufferLength / 255.0;
-
-                if (averageVolume > noiseThreshold) {
-                    hasSpeechStarted = true;
-                    lastSpeechTime = Date.now();
-                } else if (hasSpeechStarted) {
-                    const silentDuration = Date.now() - lastSpeechTime;
-                    if (silentDuration >= silenceDelayMs) {
-                        console.log(`VAD: Silence detected (${silentDuration}ms). Auto-stopping recording.`);
-                        this.stopListening();
-                    }
-                }
-            }, 100);
-        } catch (e) {
-            console.warn("VAD WebAudio error:", e);
+    resetSilenceTimer(delayMs = 2000) {
+        if (this.silenceTimer) {
+            clearTimeout(this.silenceTimer);
         }
+
+        this.silenceTimer = setTimeout(() => {
+            if (this.isListeningCommand && this.currentCommandText.trim()) {
+                console.log(`🚀 Submitting command text: "${this.currentCommandText}"`);
+                const textToSubmit = this.currentCommandText.trim();
+                this.isListeningCommand = false;
+                this.onStatusChange('idle');
+                this.onCommandTextReady(textToSubmit);
+            }
+        }, delayMs);
     }
 
-    stopVAD() {
-        if (this.vadInterval) {
-            clearInterval(this.vadInterval);
-            this.vadInterval = null;
-        }
-        if (this.maxSafetyTimeout) {
-            clearTimeout(this.maxSafetyTimeout);
-            this.maxSafetyTimeout = null;
-        }
-    }
-
-    stopListening() {
-        if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
-            this.mediaRecorder.stop();
-        }
+    triggerManualListening() {
+        this.startListeningCommand();
     }
 }
 

@@ -4,23 +4,27 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let socket = null;
     let wakeWordListener = null;
-    let chartRenderer = new UIChartRenderer('visualOutput');
-    let visualizer = new GoogleCapsuleVisualizer('capsuleVisualizer');
+    let mainVisualizer = new GoogleCapsuleVisualizer('capsuleVisualizer');
+    let bottomVisualizer = new GoogleCapsuleVisualizer('capsuleVisualizerBottom');
+    let chartRenderer = null;
 
-    const statusDot = document.getElementById('statusDot');
+    const screenInitial = document.getElementById('screenInitial');
+    const screenResults = document.getElementById('screenResults');
     const transcriptDisplay = document.getElementById('transcriptDisplay');
-    const pillStatusText = document.getElementById('pillStatusText');
-    const streamOutputCard = document.getElementById('streamOutputCard');
-    const streamTextContent = document.getElementById('streamTextContent');
+    const conversationFeed = document.getElementById('conversationFeed');
+    const bottomTranscriptText = document.getElementById('bottomTranscriptText');
+
+    let currentTurnCard = null;
+    let currentResponseBox = null;
+    let currentVisualContainer = null;
+    let isScreenTwo = false;
 
     function setVisualState(state) {
-        if (visualizer) visualizer.setState(state);
-        if (statusDot) {
-            statusDot.className = `status-dot ${state === 'listening' ? 'listening' : ''}`;
-        }
+        if (mainVisualizer) mainVisualizer.setState(state);
+        if (bottomVisualizer) bottomVisualizer.setState(state);
     }
 
-    // Markdown Renderer Helper for Final Card Output
+    // Markdown Renderer Helper
     function renderMarkdown(text) {
         if (!text) return '';
         if (window.marked && typeof window.marked.parse === 'function') {
@@ -41,13 +45,48 @@ document.addEventListener('DOMContentLoaded', () => {
         return html;
     }
 
-    // 1. WebSocket Persistent Connection
+    // Transition from Screen 1 to Screen 2
+    function switchToScreenTwo() {
+        if (isScreenTwo) return;
+        isScreenTwo = true;
+        if (screenInitial) screenInitial.classList.add('hidden');
+        if (screenResults) screenResults.classList.remove('hidden');
+    }
+
+    // Create a new Turn Card (User Query + AI Response Container) in Screen 2
+    function createNewTurnCard(queryText) {
+        switchToScreenTwo();
+
+        const card = document.createElement('div');
+        card.className = 'turn-card';
+
+        const userBubble = document.createElement('div');
+        userBubble.className = 'user-query-bubble';
+        userBubble.innerText = queryText;
+        card.appendChild(userBubble);
+
+        const aiBox = document.createElement('div');
+        aiBox.className = 'ai-response-box';
+        card.appendChild(aiBox);
+
+        const payloadDiv = document.createElement('div');
+        payloadDiv.className = 'visual-payload-container';
+        card.appendChild(payloadDiv);
+
+        conversationFeed.appendChild(card);
+        conversationFeed.scrollTop = conversationFeed.scrollHeight;
+
+        currentTurnCard = card;
+        currentResponseBox = aiBox;
+        currentVisualContainer = payloadDiv;
+        chartRenderer = new UIChartRenderer(payloadDiv);
+    }
+
+    // 1. Establish persistent WebSocket connection
     function connect() {
-        if (pillStatusText) pillStatusText.innerText = 'Connecting to Alfa...';
         socket = new WebSocket(wsUrl);
 
         socket.onopen = () => {
-            if (pillStatusText) pillStatusText.innerText = 'Auto search is on';
             initMic();
         };
 
@@ -57,7 +96,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         socket.onclose = () => {
-            if (pillStatusText) pillStatusText.innerText = 'Disconnected. Retrying...';
             setVisualState('idle');
             setTimeout(connect, 3000);
         };
@@ -67,85 +105,104 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // 2. Microphone & Wake-word Listener Setup
+    // 2. Initialize Microphone & Web Speech Listener
     async function initMic() {
         wakeWordListener = new WakeWordListener(
-            (audioBuffer) => {
+            // On Command Text Ready (Submit to backend)
+            (commandText) => {
                 if (socket && socket.readyState === WebSocket.OPEN) {
-                    // Reset Output Card for new query stream
-                    streamTextContent.innerHTML = '';
-                    streamOutputCard.classList.remove('hidden');
-                    socket.send(audioBuffer);
-                }
-            },
-            (state) => {
-                if (state === 'listening') {
-                    setVisualState('listening');
-                    transcriptDisplay.innerText = 'Listening...';
-                    if (pillStatusText) pillStatusText.innerText = 'Listening to command...';
-                } else if (state === 'idle') {
+                    createNewTurnCard(commandText);
                     setVisualState('thinking');
-                    if (pillStatusText) pillStatusText.innerText = 'Thinking...';
+                    if (bottomTranscriptText) bottomTranscriptText.innerText = 'Thinking...';
+                    socket.send(JSON.stringify({ text: commandText }));
                 }
             },
-            'hey alfa'
+            // On Status Change
+            (state) => {
+                setVisualState(state);
+                if (state === 'listening') {
+                    if (!isScreenTwo && transcriptDisplay) {
+                        transcriptDisplay.innerText = 'Listening...';
+                    }
+                    if (bottomTranscriptText) {
+                        bottomTranscriptText.innerText = 'Listening...';
+                    }
+                } else if (state === 'idle') {
+                    if (!isScreenTwo && transcriptDisplay) {
+                        transcriptDisplay.innerText = 'Say "Hey Alfa" to start';
+                    }
+                }
+            },
+            // On Instant Word-by-Word Transcript (0ms delay)
+            (instantText) => {
+                if (!isScreenTwo && transcriptDisplay) {
+                    transcriptDisplay.innerText = instantText || 'Listening...';
+                }
+                if (bottomTranscriptText) {
+                    bottomTranscriptText.innerText = instantText || 'Listening...';
+                }
+            }
         );
+
         await wakeWordListener.initMicrophone();
         if (wakeWordListener.analyser) {
-            visualizer.setAnalyser(wakeWordListener.analyser);
+            mainVisualizer.setAnalyser(wakeWordListener.analyser);
+            bottomVisualizer.setAnalyser(wakeWordListener.analyser);
         }
     }
 
-    // 3. Inbound Server Message Handler (First-Token Streaming)
+    // 3. Handle Inbound Server WebSocket Messages
     function handleServerMessage(data) {
-        if (data.type === 'transcription') {
-            transcriptDisplay.innerText = data.text || 'Listening...';
-        } else if (data.type === 'status') {
+        if (data.type === 'status') {
             setVisualState('thinking');
-            if (pillStatusText) pillStatusText.innerText = data.message || 'Processing...';
-        } else if (data.type === 'token') {
-            // First-Token Stream Handler: append each token with a smooth fade-in animation
-            if (streamOutputCard.classList.contains('hidden')) {
-                streamOutputCard.classList.remove('hidden');
+            if (bottomTranscriptText) {
+                bottomTranscriptText.innerText = data.message || 'Processing...';
             }
-            
+        } else if (data.type === 'token') {
+            // First-Token Real-Time Stream: append tokens live into active response box
+            if (!currentResponseBox) return;
+
             const tokenSpan = document.createElement('span');
             tokenSpan.className = 'token-span';
             tokenSpan.innerText = data.content;
-            streamTextContent.appendChild(tokenSpan);
+            currentResponseBox.appendChild(tokenSpan);
 
-            // Auto-scroll stream container to latest token
-            streamOutputCard.scrollTop = streamOutputCard.scrollHeight;
+            conversationFeed.scrollTop = conversationFeed.scrollHeight;
         } else if (data.type === 'final_result') {
             setVisualState('idle');
-            if (pillStatusText) pillStatusText.innerText = 'Auto search is on';
-            
-            // Format full final response text with rich Markdown
-            if (data.content) {
-                streamTextContent.innerHTML = renderMarkdown(data.content);
+            if (bottomTranscriptText) {
+                bottomTranscriptText.innerText = 'Listening for "Hey Alfa"...';
+            }
+
+            // Render Markdown formatting for completed response
+            if (currentResponseBox && data.content) {
+                currentResponseBox.innerHTML = renderMarkdown(data.content);
             }
 
             // Render visual payload (Chart.js charts, data tables, metric cards)
-            if (data.payload && Object.keys(data.payload).length > 0) {
+            if (chartRenderer && data.payload && Object.keys(data.payload).length > 0) {
                 chartRenderer.render(data.payload);
             }
+
+            conversationFeed.scrollTop = conversationFeed.scrollHeight;
         } else if (data.type === 'error') {
             setVisualState('idle');
-            if (pillStatusText) pillStatusText.innerText = 'Execution Error';
-            streamOutputCard.classList.remove('hidden');
-            streamTextContent.innerHTML = `<span style="color:#ea4335;">Error: ${data.message}</span>`;
+            if (bottomTranscriptText) bottomTranscriptText.innerText = 'Error occurred';
+            if (currentResponseBox) {
+                currentResponseBox.innerHTML = `<span style="color:#ea4335;">Error: ${data.message}</span>`;
+            }
         }
     }
 
-    // Tap Visualizer canvas or transcript to manually trigger voice input
-    const canvas = document.getElementById('capsuleVisualizer');
-    if (canvas) {
-        canvas.addEventListener('click', () => {
+    // Manual tap trigger on canvas or visualizer wrappers
+    const wrappers = document.querySelectorAll('.visualizer-wrapper, .bottom-visualizer-wrapper');
+    wrappers.forEach(w => {
+        w.addEventListener('click', () => {
             if (wakeWordListener) {
-                wakeWordListener.triggerListeningWindow(15000, 1500);
+                wakeWordListener.triggerManualListening();
             }
         });
-    }
+    });
 
     connect();
 });
