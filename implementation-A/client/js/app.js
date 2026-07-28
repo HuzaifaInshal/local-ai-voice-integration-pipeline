@@ -25,8 +25,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Markdown Renderer Helper
     function renderMarkdown(text) {
         if (!text) return '';
+        let clean = text.replace(/```json[\s\S]*?```/g, '').trim();
+        clean = clean.replace(/```[\s\S]*?```/g, '').trim();
+
         if (window.marked && typeof window.marked.parse === 'function') {
-            return window.marked.parse(text);
+            return window.marked.parse(clean);
         }
         // Fallback markdown parsing
         let html = text
@@ -79,10 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const cleanText = sanitizeTextForSpeech(text);
         if (!cleanText) return;
-
-        if (isFinal && window.speechSynthesis.speaking) {
-            window.speechSynthesis.cancel();
-        }
 
         const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.rate = 1.05;

@@ -14,17 +14,19 @@ logger = setup_logger("parakeet.gpu_llm")
 class InProcessGPULLM(BaseChatModel):
     """In-process GPU LLM wrapper running directly on CUDA VRAM with ChatML template support."""
 
-    model_name: str = "Qwen/Qwen2.5-1.5B-Instruct"
+    model_name: str = "Qwen/Qwen2.5-Coder-7B-Instruct"
     device: str = "cuda"
     tokenizer: Any = None
     model: Any = None
     tools: List[Any] = []
 
-    def __init__(self, model_name: str = "Qwen/Qwen2.5-1.5B-Instruct"):
+    def __init__(self, model_name: str = "Qwen/Qwen2.5-Coder-7B-Instruct"):
         super().__init__()
         self.model_name = os.getenv("LLM_MODEL_NAME", model_name)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self._load_model()
+
+
 
     def _load_model(self):
         """Loads model directly into PyTorch CUDA memory."""
@@ -103,17 +105,35 @@ class InProcessGPULLM(BaseChatModel):
             generated_text = self._fallback_analytical_reasoning(messages)
 
         tool_calls = self._extract_tool_calls(generated_text, messages)
-        ai_message = AIMessage(content=generated_text, tool_calls=tool_calls)
+        ai_message = AIMessage(content="" if tool_calls else generated_text, tool_calls=tool_calls)
         generation = ChatGeneration(message=ai_message)
         return ChatResult(generations=[generation])
 
     def _extract_tool_calls(self, text: str, messages: List[BaseMessage]) -> List[Dict[str, Any]]:
         """Parses generated text or user intent for SQL SELECT execution."""
-        # Check if an observation message is already in context
         has_observation = any(not isinstance(m, (SystemMessage, HumanMessage, AIMessage)) for m in messages)
         if has_observation:
             return []
 
+        # 1. Parse JSON tool format if generated
+        if "execute_sql_query" in text or "```json" in text:
+            json_match = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
+            if not json_match:
+                json_match = re.search(r"(\{[\s\S]*?\"execute_sql_query\"[\s\S]*?\})", text, re.DOTALL)
+            if json_match:
+                try:
+                    payload = json.loads(json_match.group(1))
+                    query = payload.get("args", {}).get("query") or payload.get("query")
+                    if query:
+                        return [{
+                            "name": "execute_sql_query",
+                            "args": {"query": query},
+                            "id": f"call_{os.urandom(4).hex()}"
+                        }]
+                except Exception:
+                    pass
+
+        # 2. Auto-detect raw SELECT queries
         sql_match = re.search(r'SELECT\s+.*?;?', text, re.IGNORECASE | re.DOTALL)
         if sql_match:
             sql_query = sql_match.group(0).strip().rstrip(';')
@@ -123,9 +143,21 @@ class InProcessGPULLM(BaseChatModel):
                 "id": f"call_{os.urandom(4).hex()}"
             }]
         
-        # Check user intent directly if model output didn't include explicit SELECT
+        # 3. Intent fallback matcher
         user_input = messages[-1].content.lower() if messages else ""
-        if any(w in user_input for w in ["balance", "total", "account", "money", "sum"]):
+        if any(w in user_input for w in ["sale", "sales", "client", "equity", "pep", "customer"]):
+            return [{
+                "name": "execute_sql_query",
+                "args": {"query": "SELECT crimsid, t24_id, customer_name, pr_category, business_segment, client_sales, client_equity FROM clients ORDER BY client_sales DESC;"},
+                "id": f"call_{os.urandom(4).hex()}"
+            }]
+        elif any(w in user_input for w in ["rating", "orr", "base_rating", "final_rating"]):
+            return [{
+                "name": "execute_sql_query",
+                "args": {"query": "SELECT t24_id, financial_year, pr_category, base_rating, final_rating FROM ratings;"},
+                "id": f"call_{os.urandom(4).hex()}"
+            }]
+        elif any(w in user_input for w in ["balance", "total", "account", "money", "sum"]):
             return [{
                 "name": "execute_sql_query",
                 "args": {"query": "SELECT customer_name, account_type, balance, currency FROM accounts ORDER BY balance DESC;"},
@@ -149,7 +181,11 @@ class InProcessGPULLM(BaseChatModel):
     def _fallback_analytical_reasoning(self, messages: List[BaseMessage]) -> str:
         """Analytical responder for database inquiries."""
         user_msg = messages[-1].content.lower() if messages else ""
-        if "balance" in user_msg or "total" in user_msg or "account" in user_msg:
+        if "sale" in user_msg or "sales" in user_msg or "client" in user_msg or "customer" in user_msg:
+            return "SELECT crimsid, t24_id, customer_name, pr_category, business_segment, client_sales, client_equity FROM clients ORDER BY client_sales DESC;"
+        elif "rating" in user_msg or "orr" in user_msg:
+            return "SELECT t24_id, financial_year, pr_category, base_rating, final_rating FROM ratings;"
+        elif "balance" in user_msg or "total" in user_msg or "account" in user_msg:
             return "SELECT customer_name, account_type, balance, currency FROM accounts ORDER BY balance DESC;"
         elif "loan" in user_msg:
             return "SELECT customer_name, loan_type, principal_amount, outstanding_balance, status FROM loans;"

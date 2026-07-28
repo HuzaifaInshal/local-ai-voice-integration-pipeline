@@ -4,7 +4,7 @@ Kaggle Notebook One-Click Deployment Launcher
 Repository: https://github.com/HuzaifaInshal/local-ai-voice-integration-pipeline
 
 Run this single line in a Kaggle Notebook cell:
-!git clone https://github.com/HuzaifaInshal/local-ai-voice-integration-pipeline.git && python3 local-ai-voice-integration-pipeline/deploy_kaggle.py
+!rm -rf local-ai-voice-integration-pipeline && git clone https://github.com/HuzaifaInshal/local-ai-voice-integration-pipeline.git && python3 local-ai-voice-integration-pipeline/implementation-A/deploy_kaggle.py
 """
 
 import sys

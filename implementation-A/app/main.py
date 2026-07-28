@@ -118,8 +118,12 @@ async def persistent_websocket_endpoint(websocket: WebSocket):
                                 if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
                                     tool_call = last_msg.tool_calls[0]
                                     tool_name = tool_call.get("name", "")
-                                    speak_msg = (last_msg.content or "").strip() or "Checking database records..."
-                                    user_msg = speak_msg or "Fetching database to construct result..."
+                                    raw_content = (last_msg.content or "").strip()
+                                    if raw_content and len(raw_content) < 60 and not any(c in raw_content for c in ['\n', '*', '1.', '2.']):
+                                        speak_msg = raw_content
+                                    else:
+                                        speak_msg = "Checking database records..."
+                                    user_msg = "Fetching database records..."
 
                                     await websocket.send_json({
                                         "type": "status",
