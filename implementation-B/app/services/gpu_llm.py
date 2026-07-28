@@ -14,17 +14,19 @@ from app.core.logger import setup_logger
 logger = setup_logger("alfa.gpu_llm")
 
 class PyTorchGPULLM(BaseChatModel):
-    model_name: str = "Qwen/Qwen2.5-1.5B-Instruct"
+    model_name: str = "Qwen/Qwen2.5-Coder-7B-Instruct"
     device: str = "cuda"
     tokenizer: Any = None
     model: Any = None
     tools: List[Any] = Field(default_factory=list)
 
-    def __init__(self, model_name: str = "Qwen/Qwen2.5-1.5B-Instruct"):
+    def __init__(self, model_name: str = "Qwen/Qwen2.5-Coder-7B-Instruct"):
         super().__init__()
         self.model_name = os.getenv("LLM_MODEL_NAME", model_name)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self._load_model()
+
+
 
     def _load_model(self):
         try:
@@ -174,11 +176,20 @@ class PyTorchGPULLM(BaseChatModel):
                 except Exception as e:
                     logger.warning(f"Failed to parse tool call JSON: {e}")
 
-        # 2. Robust Auto-Detection: If LLM outputted raw SQL SELECT query, convert to tool_call
-        sql_match = re.search(r"\b(SELECT\s+[\s\S]+?;)", text, re.IGNORECASE)
-        if sql_match:
-            sql_query = sql_match.group(1).strip()
-            logger.info(f"🎯 Auto-detected raw SQL SELECT query in response: '{sql_query}'")
+        # 2. Robust Auto-Detection: Catch ```sql ... ``` or raw SELECT query even if semicolon is missing
+        sql_codeblock = re.search(r"```sql\s*(SELECT[\s\S]+?)\s*```", text, re.IGNORECASE)
+        sql_query = None
+        if sql_codeblock:
+            sql_query = sql_codeblock.group(1).strip()
+        else:
+            sql_match = re.search(r"\b(SELECT\s+[\s\S]+?)(?:;|\n\n|```|$)", text, re.IGNORECASE)
+            if sql_match and len(sql_match.group(1).strip()) > 10:
+                sql_query = sql_match.group(1).strip()
+
+        if sql_query:
+            if not sql_query.endswith(";"):
+                sql_query += ";"
+            logger.info(f"🎯 Auto-detected SQL query in response: '{sql_query}' -> converting to execute_sql_query tool call")
             return AIMessage(
                 content="",
                 tool_calls=[{
@@ -189,3 +200,4 @@ class PyTorchGPULLM(BaseChatModel):
             )
 
         return AIMessage(content=text)
+

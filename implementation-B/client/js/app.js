@@ -27,10 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Markdown Renderer Helper
     function renderMarkdown(text) {
         if (!text) return '';
-        // Strip raw JSON payload code blocks from text presentation
-        let clean = text.replace(/```json[\s\S]*?```/gi, '').trim();
+        // Strip raw JSON payload code blocks, SQL code blocks, and internal SQL statements from UI text
+        let clean = text.replace(/```sql[\s\S]*?```/gi, '').trim();
+        clean = clean.replace(/```json[\s\S]*?```/gi, '').trim();
         clean = clean.replace(/```[\s\S]*?```/g, '').trim();
         clean = clean.replace(/\{[\s\S]*?"display_type"[\s\S]*?\}/gi, '').trim();
+        clean = clean.replace(/\bSELECT\s+[\s\S]+?(?:;|$)/gi, '').trim();
+        clean = clean.replace(/To find[\s\S]*?SQL query:/gi, '').trim();
+        clean = clean.replace(/Let's run this query[\s\S]*?results\./gi, '').trim();
+
 
         if (window.marked && typeof window.marked.parse === 'function') {
             return window.marked.parse(clean);

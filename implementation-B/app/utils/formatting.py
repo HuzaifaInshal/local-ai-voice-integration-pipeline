@@ -66,6 +66,13 @@ def extract_json_payload(text: str) -> Tuple[str, Dict[str, Any]]:
             except Exception:
                 payload = {}
 
-    return clean_text, payload
+    # Strip any SQL codeblocks or raw SELECT queries from clean text so UI stays 100% SQL-free
+    clean_text = re.sub(r"```sql[\s\S]*?```", "", clean_text, flags=re.IGNORECASE).strip()
+    clean_text = re.sub(r"\bSELECT\s+[\s\S]+?(?:;|\n\n|$)", "", clean_text, flags=re.IGNORECASE).strip()
+    clean_text = re.sub(r"To find[\s\S]*?SQL query:", "", clean_text, flags=re.IGNORECASE).strip()
+    clean_text = re.sub(r"Let's run this query[\s\S]*?results\.", "", clean_text, flags=re.IGNORECASE).strip()
+
+    return clean_text.strip(), payload
+
 
 

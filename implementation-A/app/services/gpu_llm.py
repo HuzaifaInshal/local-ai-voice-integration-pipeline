@@ -14,17 +14,19 @@ logger = setup_logger("parakeet.gpu_llm")
 class InProcessGPULLM(BaseChatModel):
     """In-process GPU LLM wrapper running directly on CUDA VRAM with ChatML template support."""
 
-    model_name: str = "Qwen/Qwen2.5-1.5B-Instruct"
+    model_name: str = "Qwen/Qwen2.5-Coder-7B-Instruct"
     device: str = "cuda"
     tokenizer: Any = None
     model: Any = None
     tools: List[Any] = []
 
-    def __init__(self, model_name: str = "Qwen/Qwen2.5-1.5B-Instruct"):
+    def __init__(self, model_name: str = "Qwen/Qwen2.5-Coder-7B-Instruct"):
         super().__init__()
         self.model_name = os.getenv("LLM_MODEL_NAME", model_name)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self._load_model()
+
+
 
     def _load_model(self):
         """Loads model directly into PyTorch CUDA memory."""

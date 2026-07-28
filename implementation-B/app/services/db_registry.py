@@ -33,22 +33,14 @@ class DatabaseRegistry:
             for table_name in table_names:
                 columns = self.inspector.get_columns(table_name)
                 col_defs = [f"{c['name']} ({c['type']})" for c in columns]
-                
-                # Fetch 2 sample rows
-                sample_rows = []
-                try:
-                    result = conn.execute(text(f"SELECT * FROM {table_name} LIMIT 2;"))
-                    sample_rows = [dict(row._mapping) for row in result]
-                except Exception as e:
-                    logger.warning(f"Could not fetch sample rows for {table_name}: {e}")
 
                 self.catalog[table_name] = {
-                    "columns": col_defs,
-                    "sample_records": sample_rows
+                    "columns": col_defs
                 }
 
-                snippet = f"Table '{table_name}':\n  Columns: {', '.join(col_defs)}\n  Sample Records: {sample_rows}"
+                snippet = f"Table '{table_name}': {', '.join(col_defs)}"
                 schema_snippets.append(snippet)
 
-        self.schema_context = "\n\n".join(schema_snippets)
-        logger.info("Successfully cached DB schema context for ReAct prompts.")
+        self.schema_context = "\n".join(schema_snippets)
+        logger.info("Successfully cached compact DB schema context for ReAct prompts.")
+
