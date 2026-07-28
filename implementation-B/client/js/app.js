@@ -168,9 +168,24 @@ document.addEventListener('DOMContentLoaded', () => {
             if (bottomTranscriptText) {
                 bottomTranscriptText.innerText = data.message || 'Processing...';
             }
+            if (currentResponseBox) {
+                let loader = currentResponseBox.querySelector('.fetching-loader-badge');
+                if (!loader) {
+                    loader = document.createElement('div');
+                    loader.className = 'fetching-loader-badge';
+                    loader.style.cssText = 'color:#1a73e8; font-style:italic; display:inline-flex; align-items:center; gap:0.5rem; margin:0.5rem 0; font-size:0.95rem;';
+                    currentResponseBox.appendChild(loader);
+                }
+                loader.innerHTML = `<span style="display:inline-block; width:12px; height:12px; border:2px solid #1a73e8; border-top-color:transparent; border-radius:50%; animation:spin 0.8s linear infinite;"></span> ${data.message || 'Fetching data...'}`;
+            }
         } else if (data.type === 'token') {
-            // First-Token Real-Time Stream: append tokens live into active response box
             if (!currentResponseBox) return;
+
+            // Remove fetching loader badge when real tokens stream in
+            const loader = currentResponseBox.querySelector('.fetching-loader-badge');
+            if (loader) {
+                loader.remove();
+            }
 
             const tokenSpan = document.createElement('span');
             tokenSpan.className = 'token-span';
@@ -184,9 +199,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 bottomTranscriptText.innerText = 'Listening for "Hey Alfa"...';
             }
 
-            // Render Markdown formatting for completed response
-            if (currentResponseBox && data.content) {
-                currentResponseBox.innerHTML = renderMarkdown(data.content);
+            if (currentResponseBox) {
+                const loader = currentResponseBox.querySelector('.fetching-loader-badge');
+                if (loader) loader.remove();
+
+                if (currentResponseBox.innerText) {
+                    currentResponseBox.innerHTML = renderMarkdown(currentResponseBox.innerText);
+                }
             }
 
             // Render visual payload (Chart.js charts, data tables, metric cards)
@@ -204,6 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+
     // Manual tap trigger on canvas or visualizer wrappers
     const wrappers = document.querySelectorAll('.visualizer-wrapper, .bottom-visualizer-wrapper');
     wrappers.forEach(w => {
@@ -214,5 +234,48 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Text Input Submission Handler
+    function submitUserQuery(text) {
+        if (!text || !text.trim()) return;
+        const cleanQuery = text.trim();
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            createNewTurnCard(cleanQuery);
+            setVisualState('thinking');
+            socket.send(JSON.stringify({ text: cleanQuery }));
+        }
+    }
+
+    const queryInput = document.getElementById('queryInput');
+    const querySubmitBtn = document.getElementById('querySubmitBtn');
+    const queryInputBottom = document.getElementById('queryInputBottom');
+    const querySubmitBtnBottom = document.getElementById('querySubmitBtnBottom');
+
+    if (querySubmitBtn && queryInput) {
+        querySubmitBtn.addEventListener('click', () => {
+            submitUserQuery(queryInput.value);
+            queryInput.value = '';
+        });
+        queryInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                submitUserQuery(queryInput.value);
+                queryInput.value = '';
+            }
+        });
+    }
+
+    if (querySubmitBtnBottom && queryInputBottom) {
+        querySubmitBtnBottom.addEventListener('click', () => {
+            submitUserQuery(queryInputBottom.value);
+            queryInputBottom.value = '';
+        });
+        queryInputBottom.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                submitUserQuery(queryInputBottom.value);
+                queryInputBottom.value = '';
+            }
+        });
+    }
+
     connect();
 });
+

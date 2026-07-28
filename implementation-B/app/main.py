@@ -1,3 +1,4 @@
+import json
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -10,19 +11,19 @@ from app.config import settings
 from app.core.logger import setup_logger
 from app.services.db_registry import DatabaseRegistry
 from app.agent.tools.sql_tool import set_global_db_registry
-from app.agent.graph import build_alfa_agent
+from app.agent.pipeline import AlfaPipeline
 from app.services.stt_service import STTService
 from app.utils.formatting import extract_json_payload
 
 logger = setup_logger("alfa.main")
 
 db_registry: DatabaseRegistry = None
-agent_executor = None
+alfa_pipeline: AlfaPipeline = None
 stt_service: STTService = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global db_registry, agent_executor, stt_service
+    global db_registry, alfa_pipeline, stt_service
     logger.info("Initializing Alfa AI Voice Studio Services...")
     
     db_url = settings.database_url
@@ -30,7 +31,7 @@ async def lifespan(app: FastAPI):
     db_registry.initialize()
     set_global_db_registry(db_registry)
     
-    agent_executor = build_alfa_agent(db_registry.schema_context)
+    alfa_pipeline = AlfaPipeline(db_registry.schema_context)
     stt_service = STTService(model_size=settings.whisper_model)
     
     logger.info("Alfa Backend is ready to accept WebSocket connections.")
@@ -80,7 +81,15 @@ async def websocket_endpoint(websocket: WebSocket):
                 user_text = stt_service.transcribe_audio_bytes(message["bytes"])
                 await websocket.send_json({"type": "transcription", "text": user_text})
             elif "text" in message and message["text"]:
-                user_text = message["text"]
+                raw_text = message["text"]
+                try:
+                    parsed_json = json.loads(raw_text)
+                    if isinstance(parsed_json, dict) and "text" in parsed_json:
+                        user_text = parsed_json["text"]
+                    else:
+                        user_text = raw_text
+                except Exception:
+                    user_text = raw_text
 
             if not user_text.strip():
                 continue
@@ -91,42 +100,32 @@ async def websocket_endpoint(websocket: WebSocket):
             })
 
             try:
-                initial_state = {"messages": [HumanMessage(content=user_text)]}
                 raw_response = ""
+                direct_payload = None
 
-                # Real-time Event & Token Streaming starting from FIRST TOKEN
-                async for event in agent_executor.astream_events(initial_state, version="v2"):
-                    event_type = event.get("event")
-                    
-                    if event_type == "on_chat_model_stream":
-                        chunk = event["data"].get("chunk")
-                        if chunk and hasattr(chunk, "content") and chunk.content:
-                            content_str = chunk.content
-                            raw_response += content_str
+                # Stream response via 2-Stage Ultra-Fast Pipeline
+                async for event in alfa_pipeline.run_pipeline_stream(user_text):
+                    event_type = event.get("type")
+                    if event_type == "status":
+                        await websocket.send_json(event)
+                    elif event_type == "token":
+                        await websocket.send_json(event)
+                    elif event_type == "completed":
+                        raw_response = event.get("raw_response", "")
+                        direct_payload = event.get("payload", None)
 
-                            # Skip streaming raw tool JSON, SQL codeblocks, or visual payload blocks into chat UI
-                            if not any(marker in raw_response for marker in ["execute_sql_query", "```json", "```sql", "SELECT", '"display_type"']):
-                                await websocket.send_json({
-                                    "type": "token",
-                                    "content": content_str
-                                })
-
-                    elif event_type == "on_tool_start":
-                        tool_name = event.get("name", "tool")
-                        await websocket.send_json({
-                            "type": "status",
-                            "state": "executing_tool",
-                            "tool": tool_name,
-                            "message": f"Querying banking database..."
-                        })
-
-                clean_text, payload = extract_json_payload(raw_response)
+                clean_text, parsed_payload = extract_json_payload(raw_response)
+                payload = direct_payload if (direct_payload and len(direct_payload) > 0) else parsed_payload
 
                 await websocket.send_json({
                     "type": "final_result",
                     "content": clean_text,
                     "payload": payload
                 })
+
+
+
+
             except Exception as graph_err:
                 logger.error(f"ReAct agent execution error: {graph_err}", exc_info=True)
                 await websocket.send_json({

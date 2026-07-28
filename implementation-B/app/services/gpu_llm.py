@@ -148,7 +148,27 @@ class PyTorchGPULLM(BaseChatModel):
         if not text:
             return AIMessage(content="")
 
-        # 1. Check for explicit JSON tool call blocks
+        # 1. Hermes 2/3 style: <tool_call> ... </tool_call>
+        hermes_match = re.search(r"<tool_call>\s*(\{[\s\S]*?\})\s*</tool_call>", text, re.IGNORECASE)
+        if hermes_match:
+            try:
+                payload = json.loads(hermes_match.group(1))
+                args = payload.get("arguments", payload.get("args", {}))
+                query = args.get("query", "")
+                if query:
+                    logger.info(f"🎯 Recognized Hermes <tool_call>: execute_sql_query -> {query}")
+                    return AIMessage(
+                        content="",
+                        tool_calls=[{
+                            "name": "execute_sql_query",
+                            "args": {"query": query},
+                            "id": "call_sql_001"
+                        }]
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to parse Hermes tool call JSON: {e}")
+
+        # 2. Check for explicit JSON tool call blocks
         if "execute_sql_query" in text or "```json" in text:
             json_match = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
             if not json_match:
@@ -160,6 +180,8 @@ class PyTorchGPULLM(BaseChatModel):
                     query = None
                     if "args" in payload and isinstance(payload["args"], dict):
                         query = payload["args"].get("query")
+                    elif "arguments" in payload and isinstance(payload["arguments"], dict):
+                        query = payload["arguments"].get("query")
                     elif "query" in payload:
                         query = payload.get("query")
 
@@ -176,7 +198,7 @@ class PyTorchGPULLM(BaseChatModel):
                 except Exception as e:
                     logger.warning(f"Failed to parse tool call JSON: {e}")
 
-        # 2. Robust Auto-Detection: Catch ```sql ... ``` or raw SELECT query even if semicolon is missing
+        # 3. Robust Auto-Detection: Catch ```sql ... ``` or raw SELECT query even if semicolon is missing
         sql_codeblock = re.search(r"```sql\s*(SELECT[\s\S]+?)\s*```", text, re.IGNORECASE)
         sql_query = None
         if sql_codeblock:
@@ -200,4 +222,5 @@ class PyTorchGPULLM(BaseChatModel):
             )
 
         return AIMessage(content=text)
+
 
