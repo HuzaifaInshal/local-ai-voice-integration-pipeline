@@ -1,15 +1,12 @@
 """
 db_setup.py
-Creates a small sample SQLite database so the SQL tool has something
-real to query. Replace this with your actual client schema later --
-the point right now is to prove the agent grounds itself in real tool
-output instead of inventing rows.
+Creates the banking client database with real seed data:
+  - clients: customer master with CRIMSID, T24 ID, segment, branch, SBP codes, etc.
+  - orr_ratings: Obligor Risk Rating history per customer per financial year.
 """
 
 import sqlite3
 import os
-from datetime import date, timedelta
-import random
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "company.db")
 
@@ -25,70 +22,81 @@ def build_database(path: str = DB_PATH, force: bool = False) -> str:
 
     cur.executescript(
         """
-        CREATE TABLE customers (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            email TEXT NOT NULL,
-            city TEXT NOT NULL
+        CREATE TABLE clients (
+            crimsid             INTEGER PRIMARY KEY,
+            t24_id              TEXT NOT NULL UNIQUE,
+            customer_name       TEXT NOT NULL,
+            pr_category         TEXT NOT NULL,
+            business_segment    TEXT NOT NULL,
+            branch_code         INTEGER NOT NULL,
+            branch_name         TEXT NOT NULL,
+            sbp_parent          TEXT NOT NULL,
+            sbp_child           TEXT NOT NULL,
+            client_sales        REAL NOT NULL,
+            client_equity       REAL NOT NULL,
+            opening_date        TEXT NOT NULL,
+            legal_entity        TEXT NOT NULL,
+            pep                 TEXT NOT NULL
         );
 
-        CREATE TABLE products (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            category TEXT NOT NULL,
-            price REAL NOT NULL
-        );
-
-        CREATE TABLE orders (
-            id INTEGER PRIMARY KEY,
-            customer_id INTEGER NOT NULL,
-            product_id INTEGER NOT NULL,
-            quantity INTEGER NOT NULL,
-            order_date TEXT NOT NULL,
-            status TEXT NOT NULL,
-            FOREIGN KEY(customer_id) REFERENCES customers(id),
-            FOREIGN KEY(product_id) REFERENCES products(id)
+        CREATE TABLE orr_ratings (
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            t24_id                  TEXT NOT NULL,
+            financial_year          TEXT NOT NULL,
+            pr_category             TEXT NOT NULL,
+            base_rating             INTEGER NOT NULL,
+            final_rating            INTEGER NOT NULL,
+            orr_authorized_bu_date  TEXT NOT NULL,
+            orr_authorized_cd_date  TEXT NOT NULL,
+            FOREIGN KEY(t24_id) REFERENCES clients(t24_id)
         );
         """
     )
 
-    cities = ["Karachi", "Lahore", "Islamabad", "Faisalabad", "Multan"]
-    first_names = ["Ali", "Sara", "Bilal", "Ayesha", "Hassan", "Zainab", "Omar", "Hira"]
-    last_names = ["Khan", "Ahmed", "Malik", "Raza", "Farooq", "Siddiqui"]
-
-    customers = []
-    for i in range(1, 16):
-        name = f"{random.choice(first_names)} {random.choice(last_names)}"
-        email = name.lower().replace(" ", ".") + f"{i}@example.com"
-        city = random.choice(cities)
-        customers.append((i, name, email, city))
-    cur.executemany("INSERT INTO customers VALUES (?,?,?,?)", customers)
-
-    products = [
-        (1, "Wireless Mouse", "Electronics", 1499.0),
-        (2, "Mechanical Keyboard", "Electronics", 6999.0),
-        (3, "Office Chair", "Furniture", 15999.0),
-        (4, "Standing Desk", "Furniture", 29999.0),
-        (5, "USB-C Hub", "Electronics", 2499.0),
-        (6, "Notebook Set", "Stationery", 399.0),
-        (7, "Desk Lamp", "Furniture", 1999.0),
-        (8, "Webcam 1080p", "Electronics", 3499.0),
+    clients = [
+        (12355, "145345670000", "Fauji Fertilizer",              "Corporate",  "CIBG", 5,    "Main Branch",          "MANUFACTURE OF CHEMICALS AND CHEMICAL PRODUCTS",            "Manufacture Of Fertilizers And Nitrogen Compounds",          5000000000, 25000000,   "5/25/2024",  "Public Limited Company - Unlisted",  "No"),
+        (12356, "145345680000", "Fatima Energy",                 "Corporate",  "CIBG", 5,    "Main Branch",          "ELECTRICITY GAS STEAM AND AIR CONDITIONING SUPPLY",         "Electr Power Generation Transmission And Distributn- Hydal",  2348900000, 123450000,  "12/3/2021",  "Public Limited Company - Unlisted",  "No"),
+        (12357, "145345690000", "Master Textile Mills",          "Corporate",  "CIBG", 280,  "ISB Main",             "MANUFACTURE OF TEXTILES",                                   "Preparation And Spinning Of Textile Fibres - Others",         2678900000, 323455555,  "5/27/2024",  "Private Limited Company - Unlisted", "Yes"),
+        (12358, "145345700000", "Afia Noor Textile Mills",       "Commercial", "RBG", 12,   "Urdu Bazar",           "MANUFACTURE OF TEXTILES",                                   "Preparation And Spinning Of Textile Fibres - Others",         1432322222, 254432333,  "5/28/2024",  "Private Limited Company - Unlisted", "Yes"),
+        (12359, "145345710000", "Euro Oil Traders",              "Corporate",  "CIBG", 56,  "Faisalabad Main",      "RETAIL TRADE EXCEPT OF MOTOR VEHICLES AND MOTORCYCLES",     "Others Retail Sale N.E.C",                                    2897892000, 25475544,   "5/29/2024",  "Private Limited Company - Unlisted", "Yes"),
+        (12360, "145345720000", "Prime Oil & Ghee Mills",        "Commercial", "RBG", 24,  "Jodia Bazar",          "MANUFACTURE OF FOOD PRODUCTS",                              "Manufacture Of Vegetable And Animal Oils And Fats",           2897892001, 15475544,   "4/30/2022",  "Private Limited Company - Unlisted", "Yes"),
+        (12361, "145345730000", "Hajveri Oil Extraction",        "Commercial", "RBG", 89,  "Jodia Bazar",          "MANUFACTURE OF FOOD PRODUCTS",                              "Manufacture Of Other Food Products N.E.C.,",                  287892002,  25423544,   "5/31/2024",  "Private Limited Company - Unlisted", "No"),
+        (12362, "145345740000", "Muhammad Imran Anwar",          "SE",         "IBG", 3344, "IBG - Multan",         "INDIVIDUALS",                                               "OTHER SALARIED PERSONS",                                      2892003,    23375544,   "6/10/2019",  "Individual",                         "No"),
+        (12363, "145345750000", "Ali Raza Anwar",                "SE",         "RBG", 212,  "Main Sialkot",         "INDIVIDUALS",                                               "OTHER SALARIED PERSONS",                                      1357200,    10325378,   "6/2/2024",   "Individual",                         "No"),
+        (12364, "145345760000", "Pak Green Pharmacy",            "ME",         "IBG", 4467, "IBG - Sialkot",        "HUMAN HEALTH ACTIVITIES",                                   "Other Human Health Activities",                               27892005,   25473222,   "6/3/2024",   "Individual",                         "Yes"),
+        (12365, "145345770000", "Noor Pharma Link",              "ME",         "RBG", 39,   "Susan Road - Multan",  "HUMAN HEALTH ACTIVITIES",                                   "Other Human Health Activities",                               18978926,   54475544,   "6/4/2024",   "Private Limited Company - Unlisted", "Yes"),
+        (12366, "145345780000", "OIL & GAS DEVELOPMENT COMPANY LTD", "Corporate", "CIBG", 39, "Gulberg Main",      "MANUFACTURE OF CHEMICALS AND CHEMICAL PRODUCTS",            "Manufacture Of Fertilizers And Nitrogen Compounds",           2832892007, 35475544,   "11/5/2024",  "Public Limited Company - listed",    "No"),
+        (12367, "145345790000", "SUI SOUTHERN GAS COMPANY",      "Corporate",  "CIBG", 5,   "Gulberg Main",         "PUBLIC SECTOR ENTERPRISES",                                 "Sui Southern Gas Company Ltd.",                               5897892008, 11575544,   "6/9/2022",   "Public Limited Company - listed",    "No"),
+        (12368, "145345800000", "Minhas Autos",                  "SE",         "IBG", 2344, "IBG - Gulberg",        "WHOLESALE TRADE EXCEPT OF MOTOR VEHICLES AND MOTORCYCLES",  "Non-Specialized Wholesale Trade",                             1157200,    27875544,   "12/7/2024",  "Sole Proprietorship",                "No"),
+        (12369, "145345810000", "Nexgen Auto (Private) Limited", "ME",         "RBG", 654,  "F-10 Markaz, Islamabad","MANUFACTURE OF MOTOR VEHICLES TRAILERS AND SEMI-TRAILERS", "Manufacture Of Motor Vehicles",                               21292005,   25475544,   "6/8/2024",   "Sole Proprietorship",                "No"),
+        (12370, "145345820000", "Faisalabad Cloth House",        "Commercial", "RBG", 5,    "Hyderabad Main",       "MANUFACTURE OF TEXTILES",                                   "Preparation And Spinning Of Textile Fibres - Cotton",         2897892011, 11575544,   "6/9/2024",   "Private Limited Company - Unlisted", "No"),
+        (12371, "145345830000", "Fazal Cloth House",             "ME",         "IBG", 2232, "IBG - Quetta",         "MANUFACTURE OF TEXTILES",                                   "Preparation And Spinning Of Textile Fibres - Cotton",         12292005,   21275544,   "6/10/2024",  "Private Limited Company - Unlisted", "No"),
+        (12372, "145345840000", "Qasim Autos",                   "SE",         "IBG", 6544, "IBG - Bhawalpur",      "MANUFACTURE OF MOTOR VEHICLES TRAILERS AND SEMI-TRAILERS",  "Manufacture Of Motor Vehicles",                               9792013,    25475544,   "6/11/2024",  "Sole Proprietorship",                "No"),
+        (12373, "145345850000", "Roshan Agri Business",          "Agri",       "RBG", 691,  "Vihari",               "Crop Animal Production",                                    "Post Harvest Crop Activities",                                7892014,    25475544,   "6/12/2024",  "Sole Proprietorship",                "No"),
+        (12374, "145345860000", "Cheema Agri Farm",              "Agri",       "RBG", 231,  "Nawabshah",            "Crop Animal Production",                                    "Post Harvest Crop Activities",                                2897205,    25475544,   "6/13/2024",  "Sole Proprietorship",                "No"),
     ]
-    cur.executemany("INSERT INTO products VALUES (?,?,?,?)", products)
+    cur.executemany(
+        "INSERT INTO clients VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        clients,
+    )
 
-    statuses = ["Delivered", "Shipped", "Processing", "Cancelled"]
-    orders = []
-    order_id = 1
-    start = date(2026, 5, 1)
-    for _ in range(40):
-        cust_id = random.randint(1, 15)
-        prod_id = random.randint(1, 8)
-        qty = random.randint(1, 4)
-        d = start + timedelta(days=random.randint(0, 80))
-        status = random.choice(statuses)
-        orders.append((order_id, cust_id, prod_id, qty, d.isoformat(), status))
-        order_id += 1
-    cur.executemany("INSERT INTO orders VALUES (?,?,?,?,?,?)", orders)
+    orr_ratings = [
+        ("145345670000", "6/30/2024", "Corporate",   5, 5,  "8/31/2024", "8/31/2024"),
+        ("145345670000", "6/30/2025", "Commercial",  4, 4,  "8/17/2025", "8/23/2025"),
+        ("145345670000", "6/30/2026", "Corporate",   3, 3,  "7/2/2026",  "7/15/2026"),
+        ("145345780000", "6/30/2025", "Corporate",   2, 2,  "7/3/2025",  "7/3/2025"),
+        ("145345780000", "6/30/2026", "Corporate",   1, 1,  "7/19/2026", "7/20/2026"),
+        ("145345750000", "6/30/2025", "SE",          7, 7,  "10/5/2025", "10/23/2025"),
+        ("145345750000", "6/30/2025", "SE",          8, 12, "7/3/2026",  "7/10/2026"),
+        ("145345760000", "6/30/2024", "ME",          5, 5,  "8/31/2024", "8/31/2024"),
+        ("145345760000", "6/30/2025", "ME",          6, 6,  "8/17/2025", "8/23/2025"),
+        ("145345760000", "6/30/2026", "ME",          4, 4,  "7/2/2026",  "7/15/2026"),
+        ("145345860000", "6/30/2026", "Agri",        6, 7,  "7/12/2026", "7/20/2026"),
+    ]
+    cur.executemany(
+        "INSERT INTO orr_ratings (t24_id, financial_year, pr_category, base_rating, final_rating, orr_authorized_bu_date, orr_authorized_cd_date) VALUES (?,?,?,?,?,?,?)",
+        orr_ratings,
+    )
 
     conn.commit()
     conn.close()

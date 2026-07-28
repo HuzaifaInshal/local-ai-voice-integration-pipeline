@@ -2,47 +2,318 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>ReAct Agent POC</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alfa — AI Banking Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0f1115;
-    --panel: #171a21;
-    --border: #2a2e38;
-    --accent: #5b8cff;
-    --text: #e6e8ec;
-    --muted: #8a8f9c;
-    --user: #2b3a55;
-    --bot: #1e2128;
-    --tool: #202a20;
+    --bg: #0a0c10;
+    --surface: #111318;
+    --panel: #161a22;
+    --border: #1f2433;
+    --accent: #6c8fff;
+    --accent-glow: rgba(108,143,255,0.18);
+    --accent2: #a78bfa;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --user-bg: #1a2540;
+    --bot-bg: #131720;
+    --tool-bg: #0f1a10;
+    --tool-border: #1f3320;
+    --tool-text: #7ecb85;
+    --danger: #f87171;
+    --wave1: #6c8fff;
+    --wave2: #a78bfa;
+    --wave3: #60d9fa;
+    --wave4: #7ecb85;
   }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: 'Inter', -apple-system, sans-serif;
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
+    overflow: hidden;
   }
+
+  /* ─────────────────────────── HEADER ─────────────────────────── */
   header {
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--border);
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    height: 56px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    background: rgba(10,12,16,0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
   }
-  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
-  header button {
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-mark {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff;
+  }
+  header h1 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.01em;
+  }
+  header h1 span { color: var(--accent); }
+  .header-right { display: flex; gap: 8px; align-items: center; }
+
+  .btn-icon {
+    width: 34px; height: 34px;
+    border-radius: 8px;
     background: var(--panel);
     border: 1px solid var(--border);
     color: var(--muted);
-    padding: 6px 12px;
-    border-radius: 6px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    transition: color 0.18s, border-color 0.18s, background 0.18s;
+  }
+  .btn-icon:hover { color: var(--text); border-color: var(--accent); }
+  .btn-icon.active { color: var(--accent); border-color: var(--accent); background: var(--accent-glow); }
+  .btn-icon:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+
+  .btn-sm {
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--muted);
     cursor: pointer;
     font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    transition: color 0.18s, border-color 0.18s;
   }
-  header button:hover { color: var(--text); border-color: var(--accent); }
+  .btn-sm:hover { color: var(--text); border-color: var(--accent); }
+
+  /* ─────────────────────────── MAIN LAYOUT ─────────────────────────── */
+  #app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding-top: 56px;
+  }
+
+  /* ─────────────────────────── IDLE / WAKE SCREEN ─────────────────────────── */
+  #idleScreen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    position: relative;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  #idleScreen.hidden {
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    transform: translateY(-20px);
+  }
+
+  .idle-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .idle-title {
+    font-size: 36px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--text) 0%, var(--accent) 60%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.1;
+    text-align: center;
+  }
+  .idle-sub {
+    font-size: 14px;
+    color: var(--muted);
+    text-align: center;
+    max-width: 340px;
+    line-height: 1.7;
+  }
+  .idle-sub kbd {
+    display: inline-block;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 7px;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* ─────────────────────────── ORBS (idle state) ─────────────────────────── */
+  .orb-ring {
+    position: relative;
+    width: 120px; height: 120px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .orb-ring::before, .orb-ring::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    border: 1.5px solid;
+    animation: orbit-pulse 3s ease-in-out infinite;
+  }
+  .orb-ring::before {
+    width: 100%; height: 100%;
+    border-color: rgba(108,143,255,0.2);
+    animation-delay: 0s;
+  }
+  .orb-ring::after {
+    width: 80%; height: 80%;
+    border-color: rgba(167,139,250,0.25);
+    animation-delay: 0.5s;
+  }
+  @keyframes orbit-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.06); opacity: 1; }
+  }
+  .orb-core {
+    width: 68px; height: 68px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    box-shadow: 0 0 32px rgba(108,143,255,0.35), 0 0 64px rgba(108,143,255,0.12);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .orb-ring:hover .orb-core {
+    transform: scale(1.08);
+    box-shadow: 0 0 44px rgba(108,143,255,0.5), 0 0 80px rgba(108,143,255,0.18);
+  }
+  .orb-ring.listening .orb-core {
+    animation: orb-beat 0.8s ease-in-out infinite alternate;
+    box-shadow: 0 0 48px rgba(108,143,255,0.7), 0 0 96px rgba(108,143,255,0.25);
+  }
+  @keyframes orb-beat {
+    from { transform: scale(1); }
+    to { transform: scale(1.12); }
+  }
+
+  /* ─────────────────────────── VOICE BARS ANIMATION ─────────────────────────── */
+  .voice-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 48px;
+  }
+  .voice-bars .bar {
+    width: 10px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, var(--accent2), var(--accent));
+    animation: bar-dance 1s ease-in-out infinite;
+    transition: opacity 0.3s;
+  }
+  .voice-bars .bar:nth-child(1) { animation-delay: 0s;    --bh: 28px; }
+  .voice-bars .bar:nth-child(2) { animation-delay: 0.15s; --bh: 40px; }
+  .voice-bars .bar:nth-child(3) { animation-delay: 0.3s;  --bh: 48px; }
+  .voice-bars .bar:nth-child(4) { animation-delay: 0.45s; --bh: 32px; }
+  @keyframes bar-dance {
+    0%, 100% { height: 8px; opacity: 0.5; }
+    50% { height: var(--bh); opacity: 1; }
+  }
+  .voice-bars.idle .bar { animation-play-state: paused; height: 8px; opacity: 0.3; }
+
+  /* ─────────────────────────── LISTENING OVERLAY ─────────────────────────── */
+  #listeningScreen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    top: 56px; left: 0; right: 0; bottom: 0;
+    transition: opacity 0.35s ease;
+  }
+  #listeningScreen.visible {
+    opacity: 1;
+    pointer-events: auto;
+    position: relative;
+    top: auto;
+  }
+
+  .listen-status {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    animation: blink-fade 1.8s ease-in-out infinite;
+  }
+  @keyframes blink-fade {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  #transcript-preview {
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+    text-align: center;
+    max-width: 560px;
+    line-height: 1.5;
+    min-height: 60px;
+    padding: 0 24px;
+  }
+  #transcript-preview .word {
+    display: inline;
+    opacity: 0;
+    animation: word-appear 0.25s ease forwards;
+  }
+  @keyframes word-appear {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .stop-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: -8px;
+  }
+
+  /* ─────────────────────────── CHAT VIEW ─────────────────────────── */
+  #chatView {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    top: 56px; left: 0; right: 0; bottom: 0;
+    transition: opacity 0.4s ease;
+  }
+  #chatView.visible {
+    opacity: 1;
+    pointer-events: auto;
+    position: relative;
+    top: auto;
+  }
 
   #chat {
     flex: 1;
@@ -54,138 +325,676 @@
     max-width: 820px;
     margin: 0 auto;
     width: 100%;
+    scroll-behavior: smooth;
   }
-  .msg { padding: 10px 14px; border-radius: 10px; max-width: 75%; line-height: 1.5; font-size: 14px; white-space: pre-wrap; }
-  .user { align-self: flex-end; background: var(--user); }
-  .bot { align-self: flex-start; background: var(--bot); border: 1px solid var(--border); }
+  #chat::-webkit-scrollbar { width: 4px; }
+  #chat::-webkit-scrollbar-track { background: transparent; }
+  #chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-  /* fade-in per streamed chunk */
+  .msg {
+    padding: 11px 16px;
+    border-radius: 12px;
+    max-width: 78%;
+    line-height: 1.6;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    animation: msg-in 0.3s ease forwards;
+  }
+  @keyframes msg-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .user {
+    align-self: flex-end;
+    background: var(--user-bg);
+    border: 1px solid rgba(108,143,255,0.2);
+    border-bottom-right-radius: 4px;
+  }
+  .user .voice-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--accent);
+    opacity: 0.7;
+    margin-bottom: 4px;
+  }
+  .bot {
+    align-self: flex-start;
+    background: var(--bot-bg);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+  }
+
   .token {
     display: inline;
     opacity: 0;
-    transform: translateY(3px);
-    animation: fadeIn 0.28s ease forwards;
+    animation: tok-in 0.22s ease forwards;
   }
-  @keyframes fadeIn {
-    to { opacity: 1; transform: translateY(0); }
+  @keyframes tok-in {
+    to { opacity: 1; }
   }
 
   .typing {
     align-self: flex-start;
     display: flex;
-    gap: 4px;
-    padding: 12px 14px;
-    background: var(--bot);
+    gap: 5px;
+    padding: 13px 16px;
+    background: var(--bot-bg);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 12px;
+    border-bottom-left-radius: 4px;
+    animation: msg-in 0.3s ease forwards;
   }
   .typing span {
-    width: 6px; height: 6px; border-radius: 50%;
+    width: 6px; height: 6px;
+    border-radius: 50%;
     background: var(--muted);
-    animation: pulse 1.1s infinite ease-in-out;
+    animation: dot-pulse 1.2s ease-in-out infinite;
   }
   .typing span:nth-child(2) { animation-delay: 0.15s; }
   .typing span:nth-child(3) { animation-delay: 0.3s; }
-  @keyframes pulse {
-    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  @keyframes dot-pulse {
+    0%, 80%, 100% { opacity: 0.25; transform: scale(0.7); }
     40% { opacity: 1; transform: scale(1); }
   }
 
   .trace {
     align-self: flex-start;
     max-width: 85%;
-    background: var(--tool);
-    border: 1px solid #2f4a2f;
-    border-radius: 8px;
-    padding: 8px 12px;
+    background: var(--tool-bg);
+    border: 1px solid var(--tool-border);
+    border-radius: 10px;
+    padding: 9px 14px;
     font-size: 12px;
-    color: #b7d9b7;
-    font-family: ui-monospace, Menlo, monospace;
-    opacity: 0;
-    animation: fadeIn 0.3s ease forwards;
+    color: var(--tool-text);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    animation: msg-in 0.3s ease forwards;
   }
-  .trace summary { cursor: pointer; color: #9fcf9f; }
-  .trace pre { margin: 6px 0 0 0; white-space: pre-wrap; word-break: break-word; }
+  .trace summary {
+    cursor: pointer;
+    user-select: none;
+    color: #9fd3a5;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .trace summary::before { content: '⚙'; font-size: 11px; opacity: 0.7; }
+  .trace pre { margin: 7px 0 0 0; white-space: pre-wrap; word-break: break-word; opacity: 0.85; }
+
+  /* ─────────────────────────── INPUT BAR ─────────────────────────── */
+  #inputBarWrap {
+    border-top: 1px solid var(--border);
+    padding: 12px 20px;
+    background: rgba(10,12,16,0.7);
+    backdrop-filter: blur(12px);
+    display: none;
+  }
+  #inputBarWrap.visible { display: block; }
 
   #inputBar {
-    border-top: 1px solid var(--border);
-    padding: 14px 20px;
     display: flex;
-    gap: 10px;
+    gap: 8px;
     max-width: 820px;
     margin: 0 auto;
     width: 100%;
   }
-  #inputBar input {
+  #userInput {
     flex: 1;
     background: var(--panel);
     border: 1px solid var(--border);
     color: var(--text);
-    padding: 12px 14px;
-    border-radius: 8px;
+    padding: 11px 14px;
+    border-radius: 10px;
     font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
   }
-  #inputBar input:focus { outline: none; border-color: var(--accent); }
-  #inputBar button {
-    background: var(--accent);
+  #userInput:focus { border-color: var(--accent); }
+  #userInput:disabled { opacity: 0.4; }
+
+  #sendBtn {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
     border: none;
     color: white;
-    padding: 0 20px;
-    border-radius: 8px;
+    padding: 0 18px;
+    border-radius: 10px;
     cursor: pointer;
     font-size: 14px;
+    font-family: inherit;
+    font-weight: 500;
+    transition: opacity 0.2s, transform 0.15s;
   }
-  #inputBar button:disabled { opacity: 0.5; cursor: default; }
-  .hint { color: var(--muted); font-size: 12px; padding: 0 20px 10px; max-width: 820px; margin: 0 auto; width: 100%; }
+  #sendBtn:hover { opacity: 0.88; transform: scale(1.02); }
+  #sendBtn:disabled { opacity: 0.35; cursor: default; transform: none; }
+
+  /* ─────────────────────────── BOTTOM CONTROLS ─────────────────────────── */
+  #bottomControls {
+    padding: 10px 20px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(10,12,16,0.7);
+    backdrop-filter: blur(12px);
+  }
+
+  #micBtn {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 20px rgba(108,143,255,0.3);
+    transition: transform 0.2s, box-shadow 0.2s, background 0.3s;
+  }
+  #micBtn:hover { transform: scale(1.08); box-shadow: 0 0 30px rgba(108,143,255,0.45); }
+  #micBtn.recording {
+    background: linear-gradient(135deg, #f87171, #fb923c);
+    box-shadow: 0 0 28px rgba(248,113,113,0.45);
+    animation: mic-pulse 1s ease-in-out infinite alternate;
+  }
+  @keyframes mic-pulse {
+    from { transform: scale(1); }
+    to   { transform: scale(1.1); }
+  }
+  #micBtn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .ctrl-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 3px;
+  }
+  .ctrl-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  /* ─────────────────────────── MISC ─────────────────────────── */
+  #sessionHint {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 0 20px 4px;
+    max-width: 820px;
+    margin: 0 auto;
+    width: 100%;
+    opacity: 0.6;
+  }
+  #sessionHint.hidden { display: none; }
+
+  .divider {
+    text-align: center;
+    color: var(--muted);
+    font-size: 11px;
+    position: relative;
+    margin: 4px 0;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    position: absolute;
+    top: 50%; width: 38%;
+    height: 1px;
+    background: var(--border);
+  }
+  .divider::before { left: 0; }
+  .divider::after  { right: 0; }
+
+  .notification {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 9px 18px;
+    font-size: 13px;
+    color: var(--text);
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 200;
+  }
+  .notification.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>ReAct Agent POC — try: "what's the status of order 7?" or "total revenue from delivered orders"</h1>
-  <button id="resetBtn">Reset session</button>
+  <div class="header-left">
+    <div class="logo-mark">α</div>
+    <h1><span>Alfa</span> — AI Banking Assistant</h1>
+  </div>
+  <div class="header-right">
+    <!-- Toggle: show/hide text input bar -->
+    <div class="ctrl-col">
+      <button class="btn-icon" id="toggleInputBtn" title="Toggle text input">⌨</button>
+    </div>
+    <button class="btn-sm" id="resetBtn">Reset</button>
+  </div>
 </header>
 
-<div id="chat"></div>
-<div class="hint" id="hint"></div>
-<div id="inputBar">
-  <input id="userInput" type="text" placeholder="Ask something that needs the SQL tool..." />
-  <button id="sendBtn">Send</button>
+<div id="app">
+
+  <!-- ── IDLE SCREEN ── -->
+  <div id="idleScreen">
+    <p class="idle-label">Say the wake word</p>
+    <div class="orb-ring" id="orbBtn" title="Click to start / stop listening">
+      <div class="orb-core">🎙</div>
+    </div>
+    <div class="voice-bars idle" id="idleBars">
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+    <h2 class="idle-title">Alfa</h2>
+    <p class="idle-sub">
+      Say <kbd>Alfa</kbd> to wake me, or click the orb.<br>
+      I can query banking clients, ORR ratings, segments and more.
+    </p>
+  </div>
+
+  <!-- ── LISTENING SCREEN ── -->
+  <div id="listeningScreen">
+    <p class="listen-status" id="listenStatus">Listening…</p>
+    <div class="voice-bars" id="listenBars">
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+    <div id="transcript-preview"></div>
+    <p class="stop-hint">Tap the mic to stop, or just finish speaking</p>
+  </div>
+
+  <!-- ── CHAT VIEW ── -->
+  <div id="chatView">
+    <div id="chat"></div>
+    <div id="sessionHint"></div>
+  </div>
+
+  <!-- ── TEXT INPUT BAR (hidden by default) ── -->
+  <div id="inputBarWrap">
+    <div id="inputBar">
+      <input id="userInput" type="text" placeholder="Ask something about clients, ratings…" />
+      <button id="sendBtn">Send</button>
+    </div>
+  </div>
+
+  <!-- ── BOTTOM CONTROLS ── -->
+  <div id="bottomControls">
+    <div class="ctrl-col">
+      <button class="btn-icon" id="wakeWordBtn" title="Enable / disable wake word detection">👂</button>
+      <span class="ctrl-label" id="wakeLabel">Wake word</span>
+    </div>
+    <div class="ctrl-col">
+      <button id="micBtn" title="Start / stop recording">🎙</button>
+      <span class="ctrl-label" id="micLabel">Tap to talk</span>
+    </div>
+    <div class="ctrl-col">
+      <button class="btn-icon" id="backToIdleBtn" title="Back to home" style="display:none">🏠</button>
+    </div>
+  </div>
+
 </div>
 
-<script>
-const sessionId = "kaggle-poc-" + Math.random().toString(36).slice(2);
-const chat = document.getElementById("chat");
-const input = document.getElementById("userInput");
-const sendBtn = document.getElementById("sendBtn");
-const resetBtn = document.getElementById("resetBtn");
-const hint = document.getElementById("hint");
-hint.textContent = "session: " + sessionId;
+<div class="notification" id="notif"></div>
 
-function addMsg(role, text) {
-  const div = document.createElement("div");
-  div.className = "msg " + role;
-  div.textContent = text;
+<script>
+/* ══════════════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════════════ */
+const sessionId = "alfa-" + Math.random().toString(36).slice(2);
+let isListening    = false;
+let isWaiting      = false;  // waiting for LLM response
+let wakeWordActive = true;
+let inputVisible   = false;
+let hasChatHistory = false;
+
+// Current view: 'idle' | 'listening' | 'chat'
+let currentView = 'idle';
+
+/* ── DOM refs ── */
+const idleScreen    = document.getElementById('idleScreen');
+const listeningScreen = document.getElementById('listeningScreen');
+const chatView      = document.getElementById('chatView');
+const chat          = document.getElementById('chat');
+const sessionHint   = document.getElementById('sessionHint');
+const inputBarWrap  = document.getElementById('inputBarWrap');
+const userInput     = document.getElementById('userInput');
+const sendBtn       = document.getElementById('sendBtn');
+const resetBtn      = document.getElementById('resetBtn');
+const orbBtn        = document.getElementById('orbBtn');
+const micBtn        = document.getElementById('micBtn');
+const micLabel      = document.getElementById('micLabel');
+const wakeWordBtn   = document.getElementById('wakeWordBtn');
+const wakeLabel     = document.getElementById('wakeLabel');
+const toggleInputBtn = document.getElementById('toggleInputBtn');
+const backToIdleBtn = document.getElementById('backToIdleBtn');
+const notif         = document.getElementById('notif');
+const transcriptEl  = document.getElementById('transcript-preview');
+const listenStatus  = document.getElementById('listenStatus');
+const idleBars      = document.getElementById('idleBars');
+const listenBars    = document.getElementById('listenBars');
+
+sessionHint.textContent = "session: " + sessionId;
+
+/* ══════════════════════════════════════════════════════════
+   NOTIFICATIONS
+══════════════════════════════════════════════════════════ */
+let notifTimer;
+function showNotif(msg, duration = 2400) {
+  notif.textContent = msg;
+  notif.classList.add('show');
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => notif.classList.remove('show'), duration);
+}
+
+/* ══════════════════════════════════════════════════════════
+   VIEW TRANSITIONS
+══════════════════════════════════════════════════════════ */
+function setView(view) {
+  currentView = view;
+
+  idleScreen.classList.remove('hidden');
+  idleScreen.style.display = '';
+  listeningScreen.classList.remove('visible');
+  chatView.classList.remove('visible');
+  chatView.style.position = '';
+
+  if (view === 'idle') {
+    listeningScreen.style.opacity = '0';
+    listeningScreen.style.pointerEvents = 'none';
+    chatView.style.opacity = '0';
+    chatView.style.pointerEvents = 'none';
+    idleScreen.classList.remove('hidden');
+    backToIdleBtn.style.display = 'none';
+    sessionHint.classList.add('hidden');
+  } else if (view === 'listening') {
+    idleScreen.classList.add('hidden');
+    listeningScreen.classList.add('visible');
+    chatView.style.opacity = '0';
+    chatView.style.pointerEvents = 'none';
+    backToIdleBtn.style.display = hasChatHistory ? '' : 'none';
+  } else if (view === 'chat') {
+    idleScreen.classList.add('hidden');
+    listeningScreen.style.opacity = '0';
+    listeningScreen.style.pointerEvents = 'none';
+    chatView.classList.add('visible');
+    chatView.style.position = 'relative';
+    chatView.style.top = 'auto';
+    backToIdleBtn.style.display = '';
+    sessionHint.classList.remove('hidden');
+    setTimeout(() => chat.scrollTop = chat.scrollHeight, 50);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   SPEECH RECOGNITION
+══════════════════════════════════════════════════════════ */
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let wakeRecognition = null;   // background wake-word listener
+let recognizedText = '';
+
+function buildRecognition(continuous, interim) {
+  if (!SpeechRecognition) return null;
+  const r = new SpeechRecognition();
+  r.lang = 'en-US';
+  r.continuous = continuous;
+  r.interimResults = interim;
+  return r;
+}
+
+/* ── Wake-word listener (runs silently in the background) ── */
+let isWakeStarting = false;
+
+function startWakeListener() {
+  if (!SpeechRecognition || !wakeWordActive || isListening || isWaiting) return;
+  if (isWakeStarting) return;
+  isWakeStarting = true;
+
+  if (wakeRecognition) {
+    try { wakeRecognition.stop(); } catch(_) {}
+    wakeRecognition = null;
+  }
+
+  try {
+    wakeRecognition = buildRecognition(true, true);
+  } catch (e) {
+    isWakeStarting = false;
+    return;
+  }
+
+  wakeRecognition.onresult = (e) => {
+    let fullText = '';
+    for (let i = 0; i < e.results.length; i++) {
+      if (e.results[i] && e.results[i][0]) {
+        fullText += ' ' + e.results[i][0].transcript;
+      }
+    }
+    const spoken = fullText.toLowerCase().trim();
+
+    // Match 'alfa' and common STT phonetic misinterpretations
+    const pattern = /(alfa|alpha|elfa|elpha|olfa|al\s*fa|el\s*fa|alva|alpa)/i;
+    const match = pattern.exec(spoken);
+    if (match) {
+      // Extract any query text spoken immediately after the wake word
+      const queryAfterWake = spoken.slice(match.index + match[0].length).replace(/^[,\.\s]+/, '').trim();
+      stopWakeListener();
+      if (!isListening && !isWaiting && currentView !== 'listening') {
+        startListening(queryAfterWake);
+      }
+    }
+  };
+
+  wakeRecognition.onend = () => {
+    isWakeStarting = false;
+    if (wakeWordActive && !isListening && !isWaiting) {
+      setTimeout(startWakeListener, 300);
+    }
+  };
+
+  wakeRecognition.onerror = (e) => {
+    isWakeStarting = false;
+    if (wakeWordActive && !isListening && !isWaiting) {
+      setTimeout(startWakeListener, 1200);
+    }
+  };
+
+  try {
+    wakeRecognition.start();
+    isWakeStarting = false;
+  } catch(e) {
+    isWakeStarting = false;
+    setTimeout(startWakeListener, 1000);
+  }
+}
+
+function stopWakeListener() {
+  isWakeStarting = false;
+  if (wakeRecognition) {
+    try { wakeRecognition.stop(); } catch(_) {}
+    wakeRecognition = null;
+  }
+}
+
+/* ── Main query listener ── */
+function startListening(initialText = '') {
+  if (!SpeechRecognition) {
+    showNotif("Speech recognition not supported in this browser.");
+    return;
+  }
+  if (isListening || isWaiting) return;
+
+  stopWakeListener();
+  isListening = true;
+  recognizedText = (initialText || '').trim();
+
+  setView('listening');
+  idleBars.classList.remove('idle');
+  orbBtn.classList.add('listening');
+  micBtn.classList.add('recording');
+  micBtn.innerHTML = '⏹';
+  micLabel.textContent = 'Stop';
+  listenStatus.textContent = 'Listening…';
+
+  renderTranscript(recognizedText);
+  setUIBusy(true, true);
+
+  recognition = buildRecognition(false, true);
+
+  let silenceTimer;
+  const resetSilence = (delay = 3000) => {
+    clearTimeout(silenceTimer);
+    silenceTimer = setTimeout(() => {
+      if (isListening) stopListening();
+    }, delay);
+  };
+
+  recognition.onstart = () => resetSilence(initialText ? 2200 : 3500);
+
+  recognition.onresult = (e) => {
+    let interim = '';
+    let final   = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) final += e.results[i][0].transcript;
+      else interim += e.results[i][0].transcript;
+    }
+    const newSpeech = (final + ' ' + interim).trim();
+    if (newSpeech) {
+      recognizedText = (initialText ? initialText + ' ' + newSpeech : newSpeech).trim();
+      renderTranscript(recognizedText);
+    }
+    resetSilence(2500);
+  };
+
+  recognition.onspeechend = () => stopListening();
+  recognition.onend = () => {
+    clearTimeout(silenceTimer);
+    if (isListening) {
+      isListening = false;
+      processTranscript(recognizedText);
+    }
+  };
+  recognition.onerror = (e) => {
+    clearTimeout(silenceTimer);
+    isListening = false;
+    resetListeningUI();
+    if (e.error !== 'no-speech') showNotif("Mic error: " + e.error);
+    else showNotif("No speech detected.");
+    setView(hasChatHistory ? 'chat' : 'idle');
+    setUIBusy(false);
+    startWakeListener();
+  };
+
+  try { recognition.start(); } catch(e) {
+    isListening = false;
+    resetListeningUI();
+    showNotif("Could not start microphone.");
+    setView(hasChatHistory ? 'chat' : 'idle');
+    setUIBusy(false);
+    startWakeListener();
+  }
+}
+
+function stopListening() {
+  if (!isListening) return;
+  isListening = false;
+  if (recognition) { try { recognition.stop(); } catch(_) {} }
+}
+
+function resetListeningUI() {
+  orbBtn.classList.remove('listening');
+  idleBars.classList.add('idle');
+  micBtn.classList.remove('recording');
+  micBtn.innerHTML = '🎙';
+  micLabel.textContent = 'Tap to talk';
+}
+
+function renderTranscript(text) {
+  transcriptEl.innerHTML = '';
+  if (!text) return;
+  text.split(/\s+/).forEach((w, i) => {
+    const span = document.createElement('span');
+    span.className = 'word';
+    span.style.animationDelay = (i * 0.04) + 's';
+    span.textContent = w + ' ';
+    transcriptEl.appendChild(span);
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   PROCESS SPEECH → SEND TO AGENT
+══════════════════════════════════════════════════════════ */
+async function processTranscript(text) {
+  resetListeningUI();
+  text = text.trim();
+
+  if (!text) {
+    showNotif("Didn't catch that — try again.");
+    setView(hasChatHistory ? 'chat' : 'idle');
+    setUIBusy(false);
+    startWakeListener();
+    return;
+  }
+
+  // Transition to chat
+  setView('chat');
+  hasChatHistory = true;
+  addMsg('user', text, /* voiceMode */ true);
+  await sendToAgent(text);
+  startWakeListener();
+}
+
+/* ══════════════════════════════════════════════════════════
+   CHAT HELPERS
+══════════════════════════════════════════════════════════ */
+function addMsg(role, text, fromVoice = false) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  if (role === 'user' && fromVoice) {
+    const badge = document.createElement('div');
+    badge.className = 'voice-badge';
+    badge.innerHTML = '🎙 voice';
+    div.appendChild(badge);
+  }
+  const content = document.createElement('div');
+  content.textContent = text;
+  div.appendChild(content);
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
   return div;
 }
 
 function addTypingIndicator() {
-  const div = document.createElement("div");
-  div.className = "typing";
-  div.innerHTML = "<span></span><span></span><span></span>";
+  const div = document.createElement('div');
+  div.className = 'typing';
+  div.innerHTML = '<span></span><span></span><span></span>';
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
   return div;
 }
 
 function addTrace(t) {
-  const details = document.createElement("details");
-  details.className = "trace";
-  const summary = document.createElement("summary");
-  summary.textContent = "tool call: " + t.tool + "(" + JSON.stringify(t.args) + ")";
-  const pre = document.createElement("pre");
+  const details = document.createElement('details');
+  details.className = 'trace';
+  const summary = document.createElement('summary');
+  summary.textContent = 'tool: ' + t.tool + '(' + JSON.stringify(t.args) + ')';
+  const pre = document.createElement('pre');
   pre.textContent = t.result;
   details.appendChild(summary);
   details.appendChild(pre);
@@ -193,87 +1002,204 @@ function addTrace(t) {
   chat.scrollTop = chat.scrollHeight;
 }
 
-// Appends a chunk of text to a bot bubble as a fading-in span, so it
-// reads like a live stream rather than one blob dropping in at once.
 function appendToken(bubble, text) {
-  const span = document.createElement("span");
-  span.className = "token";
+  // Get or create the content node inside the bubble
+  let content = bubble.querySelector('.msg-content');
+  if (!content) {
+    content = document.createElement('div');
+    content.className = 'msg-content';
+    bubble.appendChild(content);
+  }
+  const span = document.createElement('span');
+  span.className = 'token';
   span.textContent = text;
-  bubble.appendChild(span);
+  content.appendChild(span);
   chat.scrollTop = chat.scrollHeight;
 }
 
-async function send() {
-  const text = input.value.trim();
-  if (!text) return;
-  addMsg("user", text);
-  input.value = "";
-  sendBtn.disabled = true;
+/* ══════════════════════════════════════════════════════════
+   SEND TO AGENT (SSE Streaming)
+══════════════════════════════════════════════════════════ */
+async function sendToAgent(text) {
+  isWaiting = true;
+  setUIBusy(true);
 
   const typingEl = addTypingIndicator();
   let botBubble = null;
 
   try {
-    const res = await fetch("/api/chat/stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const res = await fetch('/api/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, message: text })
     });
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = "";
+    let buffer = '';
 
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
 
-      const parts = buffer.split("\n\n");
-      buffer = parts.pop(); // keep the possibly-incomplete last chunk
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
 
       for (const part of parts) {
         const line = part.trim();
-        if (!line.startsWith("data:")) continue;
+        if (!line.startsWith('data:')) continue;
         const payload = line.slice(5).trim();
-        if (payload === "[DONE]") continue;
+        if (payload === '[DONE]') continue;
 
         let event;
         try { event = JSON.parse(payload); } catch { continue; }
 
-        if (event.type === "tool") {
+        if (event.type === 'tool') {
           if (typingEl.parentNode) typingEl.remove();
           addTrace(event);
-        } else if (event.type === "token") {
+        } else if (event.type === 'token') {
           if (typingEl.parentNode) typingEl.remove();
-          if (!botBubble) botBubble = addMsg("bot", "");
+          if (!botBubble) {
+            botBubble = document.createElement('div');
+            botBubble.className = 'msg bot';
+            chat.appendChild(botBubble);
+          }
           appendToken(botBubble, event.text);
-        } else if (event.type === "error") {
+        } else if (event.type === 'error') {
           if (typingEl.parentNode) typingEl.remove();
-          addMsg("bot", "Error: " + event.message);
+          addMsg('bot', '⚠ ' + event.message);
         }
       }
     }
   } catch (e) {
     if (typingEl.parentNode) typingEl.remove();
-    addMsg("bot", "Error: " + e.message);
+    addMsg('bot', '⚠ Network error: ' + e.message);
   } finally {
-    sendBtn.disabled = false;
+    isWaiting = false;
+    setUIBusy(false);
   }
 }
 
-sendBtn.addEventListener("click", send);
-input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+/* ══════════════════════════════════════════════════════════
+   DISABLE / ENABLE UI CONTROLS
+══════════════════════════════════════════════════════════ */
+function setUIBusy(busy, duringListening = false) {
+  sendBtn.disabled = busy;
+  userInput.disabled = busy;
+  if (!duringListening) {
+    micBtn.disabled = busy;
+    wakeWordBtn.disabled = busy;
+    orbBtn.style.pointerEvents = busy ? 'none' : '';
+  }
+}
 
-resetBtn.addEventListener("click", async () => {
-  await fetch("/api/reset", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+/* ══════════════════════════════════════════════════════════
+   TEXT INPUT SEND
+══════════════════════════════════════════════════════════ */
+async function sendText() {
+  const text = userInput.value.trim();
+  if (!text || isWaiting) return;
+  userInput.value = '';
+  setView('chat');
+  hasChatHistory = true;
+  addMsg('user', text, false);
+  await sendToAgent(text);
+}
+
+/* ══════════════════════════════════════════════════════════
+   EVENT LISTENERS
+══════════════════════════════════════════════════════════ */
+
+// Orb click (idle screen)
+orbBtn.addEventListener('click', () => {
+  if (isListening) stopListening();
+  else startListening();
+});
+
+// Mic button (bottom controls)
+micBtn.addEventListener('click', () => {
+  if (isListening) stopListening();
+  else startListening();
+});
+
+// Wake word toggle
+wakeWordBtn.addEventListener('click', () => {
+  wakeWordActive = !wakeWordActive;
+  if (wakeWordActive) {
+    wakeWordBtn.classList.add('active');
+    wakeLabel.textContent = 'Wake on';
+    showNotif('👂 Wake word "Alfa" enabled');
+    startWakeListener();
+  } else {
+    wakeWordBtn.classList.remove('active');
+    wakeLabel.textContent = 'Wake off';
+    showNotif('Wake word disabled');
+    stopWakeListener();
+  }
+});
+
+// Toggle text input bar
+toggleInputBtn.addEventListener('click', () => {
+  inputVisible = !inputVisible;
+  if (inputVisible) {
+    inputBarWrap.classList.add('visible');
+    toggleInputBtn.classList.add('active');
+    // When input bar is shown, disable wake word button and orb visually
+    wakeWordBtn.disabled = true;
+    orbBtn.style.pointerEvents = 'none';
+    if (hasChatHistory) setView('chat');
+    userInput.focus();
+  } else {
+    inputBarWrap.classList.remove('visible');
+    toggleInputBtn.classList.remove('active');
+    wakeWordBtn.disabled = false;
+    orbBtn.style.pointerEvents = '';
+  }
+});
+
+// Send button & Enter key
+sendBtn.addEventListener('click', sendText);
+userInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendText(); });
+
+// Back to idle
+backToIdleBtn.addEventListener('click', () => setView('idle'));
+
+// Reset session
+resetBtn.addEventListener('click', async () => {
+  await fetch('/api/reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId })
   });
-  chat.innerHTML = "";
-  addMsg("bot", "Session reset. History cleared.");
+  chat.innerHTML = '';
+  hasChatHistory = false;
+  transcriptEl.textContent = '';
+  setView('idle');
+  showNotif('Session cleared');
+  startWakeListener();
 });
+
+/* ══════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════ */
+// Start wake-word detection by default
+wakeWordBtn.classList.add('active');
+setView('idle');
+
+if (SpeechRecognition) {
+  startWakeListener();
+} else {
+  wakeLabel.textContent = 'Not supported';
+  wakeWordBtn.disabled = true;
+  micBtn.disabled = true;
+  orbBtn.style.pointerEvents = 'none';
+  showNotif('Speech API not available — use text input instead.', 5000);
+  // Auto-open input bar
+  inputVisible = true;
+  inputBarWrap.classList.add('visible');
+  toggleInputBtn.classList.add('active');
+}
 </script>
 
 </body>
