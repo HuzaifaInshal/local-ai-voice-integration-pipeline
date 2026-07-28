@@ -37,7 +37,7 @@ import requests
 
 from db_setup import build_database
 
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-32B-AWQ")
+MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
 VLLM_PORT = 8000
 APP_PORT = 8080
 MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "4096"))  # lowered from 8192: T4s only report ~14.56 GiB usable, KV cache needs the headroom
@@ -56,17 +56,24 @@ def start_vllm():
         "--model", MODEL_NAME,
         "--tensor-parallel-size", "2",
         "--dtype", "float16",
-        "--quantization", "awq",              # plain AWQ kernel; awq_marlin needs Ampere+, not Turing/T4
         "--max-model-len", str(MAX_MODEL_LEN),
         "--gpu-memory-utilization", "0.85",
         "--enforce-eager",                      # skip CUDA graph capture -- frees ~2.3 GiB/GPU, tight T4s need this room
         "--enable-auto-tool-choice",
-        "--tool-call-parser", "hermes",         # Qwen3 is compatible with the hermes tool-call parser in vLLM
-        "--reasoning-parser", "qwen3",           # splits <think> content into reasoning_content instead of leaking into the answer
+        "--tool-call-parser", "hermes",         # Hermes tool-call parser for native function calling (supported by Qwen2.5-7B-Instruct)
         "--host", "0.0.0.0",
         "--port", str(VLLM_PORT),
         "--trust-remote-code",
     ]
+
+    # Conditionally add AWQ quantization flag if loading an AWQ model
+    if "awq" in MODEL_NAME.lower():
+        cmd.extend(["--quantization", "awq"])   # plain AWQ kernel; awq_marlin needs Ampere+, not Turing/T4
+
+    # Conditionally add Qwen3 reasoning parser if loading a Qwen3 reasoning model
+    if "qwen3" in MODEL_NAME.lower():
+        cmd.extend(["--reasoning-parser", "qwen3"])  # splits <think> content into reasoning_content
+
     print("[main] Command:", " ".join(cmd))
     proc = subprocess.Popen(cmd, env=env)
     return proc

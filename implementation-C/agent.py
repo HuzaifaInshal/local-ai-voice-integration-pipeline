@@ -23,7 +23,7 @@ from openai import OpenAI, AsyncOpenAI
 from tools import TOOL_DISPATCH, TOOL_SCHEMAS
 
 VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-32B-AWQ")
+MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
 MAX_ITERATIONS = 6
 MAX_HISTORY_MESSAGES = 16  # rolling window, excludes system prompt
 
@@ -42,9 +42,8 @@ Rules you must always follow:
    with no further tool calls. Keep answers concise.
 """
 
-# Disables Qwen3's <think>...</think> reasoning block. Faster and keeps
-# the "content" field clean without any string-stripping hacks.
-EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": False}}
+# Disables Qwen3's <think>...</think> reasoning block if a Qwen3 model is specified.
+EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": False}} if "qwen3" in MODEL_NAME.lower() else None
 
 client = OpenAI(base_url=VLLM_BASE_URL, api_key="EMPTY")
 async_client = AsyncOpenAI(base_url=VLLM_BASE_URL, api_key="EMPTY")
