@@ -102,9 +102,10 @@ async def websocket_endpoint(websocket: WebSocket):
                         chunk = event["data"].get("chunk")
                         if chunk and hasattr(chunk, "content") and chunk.content:
                             content_str = chunk.content
-                            # Skip raw tool JSON blocks during token stream
-                            if "```json" not in content_str and "execute_sql_query" not in content_str:
-                                raw_response += content_str
+                            raw_response += content_str
+
+                            # Skip streaming raw tool JSON or visual payload blocks into chat UI
+                            if not any(marker in raw_response for marker in ["execute_sql_query", "```json", '"display_type"']):
                                 await websocket.send_json({
                                     "type": "token",
                                     "content": content_str

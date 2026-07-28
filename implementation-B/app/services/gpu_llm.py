@@ -1,6 +1,8 @@
 import os
 import torch
 import threading
+import json
+import re
 from typing import Any, List, Optional, Iterator, Dict
 from pydantic import Field
 
@@ -141,21 +143,49 @@ class PyTorchGPULLM(BaseChatModel):
             yield ChatGenerationChunk(message=AIMessageChunk(content=err_msg))
 
     def _parse_response_message(self, text: str) -> AIMessage:
-        if "```json" in text and "execute_sql_query" in text:
-            import json, re
-            match = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
-            if match:
+        if not text:
+            return AIMessage(content="")
+
+        # 1. Check for explicit JSON tool call blocks
+        if "execute_sql_query" in text or "```json" in text:
+            json_match = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
+            if not json_match:
+                json_match = re.search(r"(\{[\s\S]*?\"execute_sql_query\"[\s\S]*?\})", text, re.DOTALL)
+            
+            if json_match:
                 try:
-                    payload = json.loads(match.group(1))
-                    if "query" in payload:
+                    payload = json.loads(json_match.group(1))
+                    query = None
+                    if "args" in payload and isinstance(payload["args"], dict):
+                        query = payload["args"].get("query")
+                    elif "query" in payload:
+                        query = payload.get("query")
+
+                    if query:
+                        logger.info(f"🎯 Recognized JSON Tool Call: execute_sql_query -> {query}")
                         return AIMessage(
-                            content=text,
+                            content="",
                             tool_calls=[{
                                 "name": "execute_sql_query",
-                                "args": {"query": payload["query"]},
+                                "args": {"query": query},
                                 "id": "call_sql_001"
                             }]
                         )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to parse tool call JSON: {e}")
+
+        # 2. Robust Auto-Detection: If LLM outputted raw SQL SELECT query, convert to tool_call
+        sql_match = re.search(r"\b(SELECT\s+[\s\S]+?;)", text, re.IGNORECASE)
+        if sql_match:
+            sql_query = sql_match.group(1).strip()
+            logger.info(f"🎯 Auto-detected raw SQL SELECT query in response: '{sql_query}'")
+            return AIMessage(
+                content="",
+                tool_calls=[{
+                    "name": "execute_sql_query",
+                    "args": {"query": sql_query},
+                    "id": "call_sql_001"
+                }]
+            )
+
         return AIMessage(content=text)

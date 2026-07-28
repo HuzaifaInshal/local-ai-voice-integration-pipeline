@@ -1,6 +1,6 @@
 class UIChartRenderer {
     constructor(containerId) {
-        this.container = document.getElementById(containerId);
+        this.container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
         this.currentChart = null;
     }
 
@@ -12,9 +12,10 @@ class UIChartRenderer {
 
         if (displayType === 'metric_card') {
             this.renderMetricCard(payload);
-        } else if (displayType === 'table') {
+        } else if (displayType === 'table' && payload.rows && payload.rows.length > 0) {
             this.renderTable(payload);
         } else {
+            // Default or fallback to dynamic Chart rendering
             this.renderChart(payload);
         }
     }
@@ -48,11 +49,26 @@ class UIChartRenderer {
     }
 
     renderTable(payload) {
-        const headers = payload.table_headers || [];
-        const rows = payload.rows || [];
+        if (!payload || !payload.rows || !Array.isArray(payload.rows) || payload.rows.length === 0) return;
+
+        let headers = payload.table_headers || payload.labels || [];
+        const rawRows = payload.rows;
+
+        // Normalize rows and headers if rows are objects
+        let normalizedRows = [];
+        if (typeof rawRows[0] === 'object' && rawRows[0] !== null && !Array.isArray(rawRows[0])) {
+            const keys = Object.keys(rawRows[0]);
+            if (headers.length === 0) {
+                headers = keys.map(k => k.replace(/_/g, ' ').toUpperCase());
+            }
+            normalizedRows = rawRows.map(obj => keys.map(k => obj[k]));
+        } else {
+            normalizedRows = rawRows;
+        }
 
         const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'overflow-x: auto; margin-top: 1rem;';
+        wrapper.className = 'table-wrapper';
+        wrapper.style.cssText = 'overflow-x: auto; margin-top: 1rem; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1);';
 
         const table = document.createElement('table');
         table.style.cssText = `
@@ -76,12 +92,21 @@ class UIChartRenderer {
         }
 
         const tbody = document.createElement('tbody');
-        rows.forEach(row => {
+        normalizedRows.forEach(row => {
             const tr = document.createElement('tr');
             tr.style.cssText = 'border-bottom: 1px solid #e0e0e0;';
-            row.forEach(cell => {
+            const cellList = Array.isArray(row) ? row : [row];
+            cellList.forEach(cell => {
                 const td = document.createElement('td');
-                td.innerText = cell;
+                let displayVal = cell;
+                if (typeof cell === 'number') {
+                    displayVal = cell >= 1000 ? cell.toLocaleString() : cell;
+                } else if (cell === null || cell === undefined) {
+                    displayVal = '-';
+                } else {
+                    displayVal = String(cell);
+                }
+                td.innerText = displayVal;
                 td.style.cssText = 'padding: 0.6rem 0.8rem; color: #3c4043;';
                 tr.appendChild(td);
             });
@@ -92,23 +117,41 @@ class UIChartRenderer {
         this.container.appendChild(wrapper);
     }
 
+
     renderChart(payload) {
         if (!window.Chart) return;
 
         const canvas = document.createElement('canvas');
-        canvas.style.cssText = 'max-height: 240px; width: 100%; margin-top: 1rem;';
+        canvas.style.cssText = 'max-height: 260px; width: 100%; margin-top: 1rem;';
         this.container.appendChild(canvas);
 
         const chartType = payload.chart_type || 'bar';
-        const labels = payload.labels || [];
-        const datasets = (payload.datasets || []).map((ds, idx) => ({
-            label: ds.label || 'Metric',
-            data: ds.data || [],
-            backgroundColor: [
-                '#4285f4', '#34a853', '#fbbc05', '#ea4335', '#ab47bc', '#00acc1'
-            ],
-            borderRadius: 6
-        }));
+
+        // Auto-adapt datasets if model provided datasets array with individual labels
+        let labels = payload.labels || [];
+        let datasets = payload.datasets || [];
+
+        if (labels.length === 0 && datasets.length > 0 && datasets[0].label) {
+            labels = datasets.map(d => d.label);
+            const dataValues = datasets.map(d => (Array.isArray(d.data) ? d.data[0] : d.data));
+            datasets = [{
+                label: payload.title || 'Metrics',
+                data: dataValues,
+                backgroundColor: [
+                    '#4285f4', '#34a853', '#fbbc05', '#ea4335', '#ab47bc', '#00acc1'
+                ],
+                borderRadius: 6
+            }];
+        } else {
+            datasets = datasets.map((ds, idx) => ({
+                label: ds.label || 'Metric',
+                data: ds.data || [],
+                backgroundColor: [
+                    '#4285f4', '#34a853', '#fbbc05', '#ea4335', '#ab47bc', '#00acc1'
+                ],
+                borderRadius: 6
+            }));
+        }
 
         this.currentChart = new window.Chart(canvas, {
             type: chartType,
@@ -127,7 +170,7 @@ class UIChartRenderer {
                         font: { size: 14, weight: '600' }
                     },
                     legend: {
-                        display: chartType === 'pie'
+                        display: chartType === 'pie' || datasets.length > 1
                     }
                 },
                 scales: chartType === 'pie' ? {} : {

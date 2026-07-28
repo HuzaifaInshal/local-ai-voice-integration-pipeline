@@ -27,10 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Markdown Renderer Helper
     function renderMarkdown(text) {
         if (!text) return '';
+        // Strip raw JSON payload code blocks from text presentation
+        let clean = text.replace(/```json[\s\S]*?```/gi, '').trim();
+        clean = clean.replace(/```[\s\S]*?```/g, '').trim();
+        clean = clean.replace(/\{[\s\S]*?"display_type"[\s\S]*?\}/gi, '').trim();
+
         if (window.marked && typeof window.marked.parse === 'function') {
-            return window.marked.parse(text);
+            return window.marked.parse(clean);
         }
-        let html = text
+        let html = clean
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
