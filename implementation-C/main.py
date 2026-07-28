@@ -20,6 +20,13 @@ Before running:
 If Qwen3-32B-AWQ fails to load or OOMs on your two T4s, drop
 MODEL_NAME down to "Qwen/Qwen3-14B-AWQ" (or a smaller AWQ build) --
 see the README for the fallback command.
+
+Note on T4 memory: vLLM's CUDA graph capture step alone can eat over
+2 GiB per GPU, which is exactly what caused an OOM during the guided-
+decoding warmup step in earlier test runs (weights + activations +
+graphs left ~19 MiB free, then a routine warmup allocation failed).
+--enforce-eager below trades a bit of decode latency for that memory
+back -- worth keeping for a POC on T4s regardless of model size.
 """
 
 import os
@@ -33,7 +40,7 @@ from db_setup import build_database
 MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-32B-AWQ")
 VLLM_PORT = 8000
 APP_PORT = 8080
-MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "8192"))
+MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "4096"))  # lowered from 8192: T4s only report ~14.56 GiB usable, KV cache needs the headroom
 
 VLLM_HEALTH_URL = f"http://localhost:{VLLM_PORT}/health"
 
@@ -52,6 +59,7 @@ def start_vllm():
         "--quantization", "awq",              # plain AWQ kernel; awq_marlin needs Ampere+, not Turing/T4
         "--max-model-len", str(MAX_MODEL_LEN),
         "--gpu-memory-utilization", "0.85",
+        "--enforce-eager",                      # skip CUDA graph capture -- frees ~2.3 GiB/GPU, tight T4s need this room
         "--enable-auto-tool-choice",
         "--tool-call-parser", "hermes",         # Qwen3 is compatible with the hermes tool-call parser in vLLM
         "--host", "0.0.0.0",
@@ -101,6 +109,7 @@ def start_ngrok():
 
 def main():
     build_database()
+    start_ngrok()
 
     vllm_proc = start_vllm()
     try:
@@ -109,7 +118,6 @@ def main():
             vllm_proc.terminate()
             sys.exit(1)
 
-        start_ngrok()
 
         # Run FastAPI app in the foreground so the process (and tunnel) stays alive.
         os.environ["VLLM_BASE_URL"] = f"http://localhost:{VLLM_PORT}/v1"

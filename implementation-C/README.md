@@ -40,6 +40,15 @@ tool output the model received — this is your fastest way to tell
 "model hallucinated" apart from "model answered correctly but you
 doubted it."
 
+## Fixed: OOM during guided-decoding warmup on T4
+
+If you saw a `CUDA out of memory` error that hit right after "Capturing
+CUDA graphs" and during a `warmup_kernels`/`grammar_output` step, that's
+CUDA graph capture (~2.3 GiB/GPU) leaving almost no room for the tool-call
+grammar warmup. `main.py` now passes `--enforce-eager` to skip graph
+capture entirely, and `MAX_MODEL_LEN` defaults to 4096 for extra margin.
+This trades a little decode latency for the memory back — fine for a POC.
+
 ## If Qwen3-32B-AWQ doesn't fit or errors out on your 2x T4
 
 Turing GPUs (T4) don't support the fast `awq_marlin` kernel or
