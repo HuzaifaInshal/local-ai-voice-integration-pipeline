@@ -12,12 +12,36 @@ class UIChartRenderer {
 
         if (displayType === 'metric_card') {
             this.renderMetricCard(payload);
+        } else if (displayType === 'empty_state') {
+            this.renderEmptyState(payload);
         } else if (displayType === 'table' && payload.rows && payload.rows.length > 0) {
             this.renderTable(payload);
         } else {
             // Default or fallback to dynamic Chart rendering
             this.renderChart(payload);
         }
+    }
+
+    renderEmptyState(payload) {
+        const card = document.createElement('div');
+        card.className = 'empty-state-card';
+        card.style.cssText = `
+            background: #f8f9fa;
+            border: 1.5px dashed #dadce0;
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            text-align: center;
+            margin: 0.75rem 0;
+            color: #5f6368;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+            animation: fadeInScreen 0.3s ease forwards;
+        `;
+        card.innerHTML = `
+            <div style="font-size: 1.6rem; margin-bottom: 0.4rem; color: #1a73e8;">🔍</div>
+            <div style="font-weight: 600; font-size: 0.95rem; color: #3c4043;">${payload.title || 'No Matching Records Found'}</div>
+            <div style="font-size: 0.85rem; margin-top: 0.3rem; color: #70757a; line-height: 1.4;">${payload.message || 'No data was returned for your query criteria.'}</div>
+        `;
+        this.container.appendChild(card);
     }
 
     clear() {

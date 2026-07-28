@@ -60,20 +60,38 @@ PREVIOUS TURNS & EXECUTED SQL:
 {history_str}
 
 CURRENT USER QUERY: {user_text}"""
-
         logger.info("⚡ [Single-Instance LLM Call] Streaming token-by-token response...")
         full_response_text = ""
+        status_sent = False
+        in_sql_block = False
 
         try:
             for chunk in self.llm.stream([HumanMessage(content=unified_prompt)]):
                 token = chunk.content if hasattr(chunk, "content") else str(chunk)
                 if token:
                     full_response_text += token
-                    yield {
-                        "type": "token",
-                        "content": token
-                    }
-                    await asyncio.sleep(0.005)
+
+                    # Detect transition into SQL codeblock
+                    if not status_sent and ("```sql" in full_response_text or re.search(r"```\s*SELECT", full_response_text, re.IGNORECASE)):
+                        status_sent = True
+                        in_sql_block = True
+                        yield {
+                            "type": "status",
+                            "state": "executing_tool",
+                            "tool": "execute_sql_query",
+                            "message": "Fetching data..."
+                        }
+
+                    if in_sql_block and full_response_text.strip().endswith("```") and full_response_text.count("```") % 2 == 0:
+                        in_sql_block = False
+
+                    # Only stream conversational tokens to the client UI (suppress raw SQL)
+                    if not in_sql_block and not status_sent:
+                        yield {
+                            "type": "token",
+                            "content": token
+                        }
+                        await asyncio.sleep(0.005)
         except Exception as e:
             logger.error(f"❌ Error during LLM streaming: {e}")
 
@@ -102,16 +120,18 @@ CURRENT USER QUERY: {user_text}"""
                 sql_query += ";"
 
             logger.info(f"📊 [SQL Detected in Response]: {sql_query}")
-            yield {
-                "type": "status",
-                "state": "executing_tool",
-                "tool": "execute_sql_query",
-                "message": "Fetching data..."
-            }
+            if not status_sent:
+                yield {
+                    "type": "status",
+                    "state": "executing_tool",
+                    "tool": "execute_sql_query",
+                    "message": "Fetching data..."
+                }
 
             try:
                 db_records = execute_sql_query.invoke({"query": sql_query})
-                logger.info(f"✅ [SQL Execution Success]: Retrieved {len(db_records) if isinstance(db_records, list) else 0} records from DB")
+                record_count = len(db_records) if isinstance(db_records, list) else 0
+                logger.info(f"✅ [SQL Execution Success]: Retrieved {record_count} records from DB")
 
                 if isinstance(db_records, list) and len(db_records) > 0 and isinstance(db_records[0], dict):
                     raw_keys = list(db_records[0].keys())
@@ -132,8 +152,20 @@ CURRENT USER QUERY: {user_text}"""
                         "table_headers": headers,
                         "rows": rows
                     }
+                else:
+                    logger.info("ℹ️ SQL executed successfully but returned 0 records.")
+                    payload = {
+                        "display_type": "empty_state",
+                        "title": "No Matching Records Found",
+                        "message": "The query executed successfully, but no matching records were found in the database."
+                    }
             except Exception as e:
                 logger.error(f"❌ [SQL Execution Error]: {e}")
+                payload = {
+                    "display_type": "empty_state",
+                    "title": "Query Error",
+                    "message": f"Could not execute query: {str(e)}"
+                }
         else:
             logger.info("ℹ️ No SQL query detected in LLM response (non-DB query or standard conversation).")
 

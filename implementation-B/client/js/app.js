@@ -169,28 +169,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 bottomTranscriptText.innerText = data.message || 'Processing...';
             }
             if (currentResponseBox) {
-                let loader = currentResponseBox.querySelector('.fetching-loader-badge');
-                if (!loader) {
-                    loader = document.createElement('div');
-                    loader.className = 'fetching-loader-badge';
-                    loader.style.cssText = 'color:#1a73e8; font-style:italic; display:inline-flex; align-items:center; gap:0.5rem; margin:0.5rem 0; font-size:0.95rem;';
-                    currentResponseBox.appendChild(loader);
+                let slot = currentResponseBox.querySelector('.inline-payload-slot');
+                if (!slot) {
+                    slot = document.createElement('div');
+                    slot.className = 'inline-payload-slot';
+                    slot.style.cssText = 'margin: 0.75rem 0; width: 100%; transition: all 0.3s ease;';
+                    slot.innerHTML = `
+                        <div class="inline-fetching-badge" style="display: inline-flex; align-items: center; gap: 0.6rem; padding: 0.55rem 1rem; background: rgba(26, 115, 232, 0.08); border: 1px solid rgba(26, 115, 232, 0.25); border-radius: 20px; color: #1a73e8; font-size: 0.9rem; font-weight: 500; animation: slideUpTurn 0.25s ease;">
+                            <span style="display: inline-block; width: 12px; height: 12px; border: 2px solid #1a73e8; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+                            <span>${data.message || 'Fetching data...'}</span>
+                        </div>
+                    `;
+                    currentResponseBox.appendChild(slot);
                 }
-                loader.innerHTML = `<span style="display:inline-block; width:12px; height:12px; border:2px solid #1a73e8; border-top-color:transparent; border-radius:50%; animation:spin 0.8s linear infinite;"></span> ${data.message || 'Fetching data...'}`;
             }
         } else if (data.type === 'token') {
             if (!currentResponseBox) return;
 
-            // Remove fetching loader badge when real tokens stream in
-            const loader = currentResponseBox.querySelector('.fetching-loader-badge');
-            if (loader) {
-                loader.remove();
-            }
-
             const tokenSpan = document.createElement('span');
             tokenSpan.className = 'token-span';
             tokenSpan.innerText = data.content;
-            currentResponseBox.appendChild(tokenSpan);
+
+            const slot = currentResponseBox.querySelector('.inline-payload-slot');
+            if (slot) {
+                currentResponseBox.insertBefore(tokenSpan, slot);
+            } else {
+                currentResponseBox.appendChild(tokenSpan);
+            }
 
             conversationFeed.scrollTop = conversationFeed.scrollHeight;
         } else if (data.type === 'final_result') {
@@ -200,17 +205,41 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (currentResponseBox) {
-                const loader = currentResponseBox.querySelector('.fetching-loader-badge');
-                if (loader) loader.remove();
+                let slot = currentResponseBox.querySelector('.inline-payload-slot');
 
-                if (currentResponseBox.innerText) {
+                // Render markdown text while preserving inline slot position
+                if (slot) {
+                    const tempPlaceholder = document.createElement('div');
+                    tempPlaceholder.id = '__INLINE_SLOT_HOLDER__';
+                    slot.parentNode.replaceChild(tempPlaceholder, slot);
+
+                    const textContent = currentResponseBox.innerText.replace('__INLINE_SLOT_HOLDER__', '').trim();
+                    currentResponseBox.innerHTML = renderMarkdown(textContent);
+
+                    const reinsertTarget = currentResponseBox.querySelector('#__INLINE_SLOT_HOLDER__');
+                    if (reinsertTarget) {
+                        reinsertTarget.parentNode.replaceChild(slot, reinsertTarget);
+                    } else {
+                        currentResponseBox.appendChild(slot);
+                    }
+                } else {
                     currentResponseBox.innerHTML = renderMarkdown(currentResponseBox.innerText);
                 }
-            }
 
-            // Render visual payload (Chart.js charts, data tables, metric cards)
-            if (chartRenderer && data.payload && Object.keys(data.payload).length > 0) {
-                chartRenderer.render(data.payload);
+                // Smoothly render table or empty state payload directly inside the inline slot
+                if (data.payload && Object.keys(data.payload).length > 0) {
+                    if (!slot) {
+                        slot = document.createElement('div');
+                        slot.className = 'inline-payload-slot';
+                        slot.style.cssText = 'margin: 0.75rem 0; width: 100%;';
+                        currentResponseBox.appendChild(slot);
+                    }
+                    const inlineRenderer = new UIChartRenderer(slot);
+                    inlineRenderer.render(data.payload);
+                } else if (slot) {
+                    // Remove loader slot if no payload was generated (e.g. simple chat)
+                    slot.remove();
+                }
             }
 
             conversationFeed.scrollTop = conversationFeed.scrollHeight;
