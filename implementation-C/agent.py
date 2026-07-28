@@ -1,14 +1,24 @@
 """
 agent.py
-The ReAct loop itself, talking to the local vLLM OpenAI-compatible
-server. Uses NATIVE tool calling (not text-parsed Thought/Action/
-Observation) specifically so the model cannot free-text a fake
-observation the way it did with the prompted-ReAct Qwen2.5 setup.
+The ReAct loop, talking to the local vLLM OpenAI-compatible server.
+Uses NATIVE tool calling (not text-parsed Thought/Action/Observation)
+so the model cannot free-text a fake observation.
+
+Two entry points:
+  - run_agent()         non-streaming, returns (final_text, trace) -- simple, good for curl/testing
+  - run_agent_stream()  async generator, yields events as they happen -- what the UI uses
+
+Qwen3's "thinking mode" is explicitly disabled via chat_template_kwargs
+below. This is a deliberate choice, not just cosmetic: thinking mode
+generates a full internal monologue before the answer, which (a) leaked
+into the visible reply because nothing was splitting it out, and (b) was
+the main reason replies felt slow -- you were waiting for 2x-3x the
+tokens you actually wanted to see.
 """
 
 import json
 import os
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 
 from tools import TOOL_DISPATCH, TOOL_SCHEMAS
 
@@ -29,16 +39,20 @@ Rules you must always follow:
 4. If you are unsure of a table or column name, call get_schema first instead
    of guessing.
 5. Once you have enough real tool output to answer, give a direct final answer
-   with no further tool calls.
+   with no further tool calls. Keep answers concise.
 """
 
+# Disables Qwen3's <think>...</think> reasoning block. Faster and keeps
+# the "content" field clean without any string-stripping hacks.
+EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": False}}
+
 client = OpenAI(base_url=VLLM_BASE_URL, api_key="EMPTY")
+async_client = AsyncOpenAI(base_url=VLLM_BASE_URL, api_key="EMPTY")
 
 
 class ConversationManager:
-    """Keeps per-session chat history, trimmed to a rolling window so the
-    context doesn't grow unbounded across a long session. System prompt is
-    always preserved."""
+    """Per-session chat history, trimmed to a rolling window. System
+    prompt is always preserved."""
 
     def __init__(self):
         self.sessions = {}
@@ -68,78 +82,141 @@ class ConversationManager:
 convo = ConversationManager()
 
 
-def run_agent(session_id: str, user_message: str):
-    """Runs one full ReAct turn (possibly several tool calls) for a user
-    message and returns (final_reply, trace) where trace is a list of
-    {tool, args, result} dicts for the UI to display."""
+def _run_tool(name: str, args: dict) -> str:
+    fn = TOOL_DISPATCH.get(name)
+    if fn is None:
+        return json.dumps({"error": f"Unknown tool '{name}'"})
+    try:
+        return fn(**args)
+    except Exception as e:
+        return json.dumps({"error": f"Tool '{name}' raised: {e}"})
 
+
+# ---------------------------------------------------------------------------
+# Non-streaming version (simple, useful for testing without an SSE client)
+# ---------------------------------------------------------------------------
+
+def run_agent(session_id: str, user_message: str):
     convo.append(session_id, {"role": "user", "content": user_message})
     trace = []
 
     for _ in range(MAX_ITERATIONS):
         history = convo.get(session_id)
-
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=history,
             tools=TOOL_SCHEMAS,
             tool_choice="auto",
             temperature=0.2,
+            extra_body=EXTRA_BODY,
         )
-
         msg = response.choices[0].message
 
         if msg.tool_calls:
-            # Persist the assistant's tool-call request in history
-            convo.append(
-                session_id,
-                {
-                    "role": "assistant",
-                    "content": msg.content or "",
-                    "tool_calls": [
-                        {
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {
-                                "name": tc.function.name,
-                                "arguments": tc.function.arguments,
-                            },
-                        }
-                        for tc in msg.tool_calls
-                    ],
-                },
-            )
-
+            convo.append(session_id, {
+                "role": "assistant",
+                "content": msg.content or "",
+                "tool_calls": [
+                    {"id": tc.id, "type": "function",
+                     "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                    for tc in msg.tool_calls
+                ],
+            })
             for tc in msg.tool_calls:
-                name = tc.function.name
                 try:
                     args = json.loads(tc.function.arguments or "{}")
                 except json.JSONDecodeError:
                     args = {}
+                result = _run_tool(tc.function.name, args)
+                trace.append({"tool": tc.function.name, "args": args, "result": result})
+                convo.append(session_id, {"role": "tool", "tool_call_id": tc.id, "content": result})
+            continue
 
-                fn = TOOL_DISPATCH.get(name)
-                if fn is None:
-                    result = json.dumps({"error": f"Unknown tool '{name}'"})
-                else:
-                    try:
-                        result = fn(**args)
-                    except Exception as e:
-                        result = json.dumps({"error": f"Tool '{name}' raised: {e}"})
-
-                trace.append({"tool": name, "args": args, "result": result})
-
-                # Real tool output goes back as its own "tool" role message --
-                # this is the structural guardrail against fabricated observations.
-                convo.append(
-                    session_id,
-                    {"role": "tool", "tool_call_id": tc.id, "content": result},
-                )
-
-            continue  # let the model see the tool results and decide next step
-
-        # No tool call -> this is the final answer
         final_text = msg.content or ""
         convo.append(session_id, {"role": "assistant", "content": final_text})
         return final_text, trace
 
     return "Reached max tool-call iterations without a final answer.", trace
+
+
+# ---------------------------------------------------------------------------
+# Streaming version -- what the UI calls, via /api/chat/stream
+# ---------------------------------------------------------------------------
+
+async def run_agent_stream(session_id: str, user_message: str):
+    """Async generator yielding dicts:
+      {"type": "tool", "tool": ..., "args": ..., "result": ...}
+      {"type": "token", "text": ...}
+      {"type": "done"}
+      {"type": "error", "message": ...}
+    """
+    convo.append(session_id, {"role": "user", "content": user_message})
+
+    for _ in range(MAX_ITERATIONS):
+        history = convo.get(session_id)
+
+        try:
+            stream = await async_client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=history,
+                tools=TOOL_SCHEMAS,
+                tool_choice="auto",
+                temperature=0.2,
+                extra_body=EXTRA_BODY,
+                stream=True,
+            )
+        except Exception as e:
+            yield {"type": "error", "message": f"Model request failed: {e}"}
+            return
+
+        content_buf = ""
+        tool_calls_acc = {}  # index -> {"id":..., "name":..., "arguments":...}
+
+        async for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+
+            if getattr(delta, "content", None):
+                content_buf += delta.content
+                yield {"type": "token", "text": delta.content}
+
+            if getattr(delta, "tool_calls", None):
+                for tc_delta in delta.tool_calls:
+                    idx = tc_delta.index
+                    slot = tool_calls_acc.setdefault(idx, {"id": "", "name": "", "arguments": ""})
+                    if tc_delta.id:
+                        slot["id"] = tc_delta.id
+                    if tc_delta.function:
+                        if tc_delta.function.name:
+                            slot["name"] += tc_delta.function.name
+                        if tc_delta.function.arguments:
+                            slot["arguments"] += tc_delta.function.arguments
+
+        if tool_calls_acc:
+            ordered = [tool_calls_acc[i] for i in sorted(tool_calls_acc)]
+            convo.append(session_id, {
+                "role": "assistant",
+                "content": content_buf,
+                "tool_calls": [
+                    {"id": tc["id"], "type": "function",
+                     "function": {"name": tc["name"], "arguments": tc["arguments"]}}
+                    for tc in ordered
+                ],
+            })
+            for tc in ordered:
+                try:
+                    args = json.loads(tc["arguments"] or "{}")
+                except json.JSONDecodeError:
+                    args = {}
+                result = _run_tool(tc["name"], args)
+                yield {"type": "tool", "tool": tc["name"], "args": args, "result": result}
+                convo.append(session_id, {"role": "tool", "tool_call_id": tc["id"], "content": result})
+            continue  # loop again so the model sees the tool results
+
+        # No tool calls in this turn -> it was the final answer
+        convo.append(session_id, {"role": "assistant", "content": content_buf})
+        yield {"type": "done"}
+        return
+
+    yield {"type": "error", "message": "Reached max tool-call iterations without a final answer."}

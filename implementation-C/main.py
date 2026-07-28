@@ -62,6 +62,7 @@ def start_vllm():
         "--enforce-eager",                      # skip CUDA graph capture -- frees ~2.3 GiB/GPU, tight T4s need this room
         "--enable-auto-tool-choice",
         "--tool-call-parser", "hermes",         # Qwen3 is compatible with the hermes tool-call parser in vLLM
+        "--reasoning-parser", "qwen3",           # splits <think> content into reasoning_content instead of leaking into the answer
         "--host", "0.0.0.0",
         "--port", str(VLLM_PORT),
         "--trust-remote-code",
@@ -109,7 +110,6 @@ def start_ngrok():
 
 def main():
     build_database()
-    start_ngrok()
 
     vllm_proc = start_vllm()
     try:
@@ -118,6 +118,7 @@ def main():
             vllm_proc.terminate()
             sys.exit(1)
 
+        start_ngrok()
 
         # Run FastAPI app in the foreground so the process (and tunnel) stays alive.
         os.environ["VLLM_BASE_URL"] = f"http://localhost:{VLLM_PORT}/v1"
