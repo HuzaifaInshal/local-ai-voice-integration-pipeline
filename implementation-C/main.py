@@ -37,7 +37,8 @@ import requests
 
 from db_setup import build_database
 
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
+# MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
+MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-32B-AWQ")
 VLLM_PORT = 8000
 APP_PORT = 8080
 MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "4096"))  # lowered from 8192: T4s only report ~14.56 GiB usable, KV cache needs the headroom

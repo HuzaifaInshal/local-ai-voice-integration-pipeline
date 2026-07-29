@@ -16,6 +16,7 @@ the main reason replies felt slow -- you were waiting for 2x-3x the
 tokens you actually wanted to see.
 """
 
+from main import MODEL_NAME
 import json
 import os
 from openai import OpenAI, AsyncOpenAI
@@ -23,9 +24,9 @@ from openai import OpenAI, AsyncOpenAI
 from tools import TOOL_DISPATCH, TOOL_SCHEMAS
 
 VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
+# MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
 MAX_ITERATIONS = 6
-MAX_HISTORY_MESSAGES = 16  # rolling window, excludes system prompt
+MAX_HISTORY_MESSAGES = 6  # rolling window, excludes system prompt, 16 for Qwen3-32B-AWQ
 
 SYSTEM_PROMPT = """You are Alfa, an AI banking data assistant with access to tools.
 
@@ -45,9 +46,9 @@ Rules you must always follow:
    up a plausible-looking substitute answer.
 4. If you are unsure of a table or column name, call get_schema first instead
    of guessing.
-5. Once you have enough real tool output to answer, give a direct, concise final
-   answer with no further tool calls.
-6. Format monetary values (client_sales, client_equity) in readable PKR format when presenting to users.
+5. Format monetary values (client_sales, client_equity) in readable PKR format when presenting to users.
+6. When responding to analytics, comparisons, distributions, or rankings of numeric data (e.g., top clients by sales, segment breakdowns, ORR history), call render_chart to render a visual chart alongside your written answer.
+7. Once you have enough real tool output to answer, give a direct, concise final answer.
 """
 
 # Disables Qwen3's <think>...</think> reasoning block if a Qwen3 model is specified.

@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
       --bg-color: #ffffff;
@@ -443,6 +444,37 @@
       font-size: 12px;
       color: #14532d;
     }
+    .chart-card {
+      align-self: flex-start;
+      width: 100%;
+      max-width: 620px;
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin: 8px 0;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+      animation: msgPop 0.35s ease forwards;
+    }
+
+    .chart-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .chart-card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .chart-wrapper {
+      position: relative;
+      width: 100%;
+      height: 260px;
+    }
 
     /* Bottom Voice & Input Bar */
     #inputBar {
@@ -675,6 +707,81 @@
       chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
+    function renderChartCard(chartData) {
+      if (!window.Chart || !chartData) return;
+
+      const card = document.createElement("div");
+      card.className = "chart-card";
+
+      const header = document.createElement("div");
+      header.className = "chart-card-header";
+
+      const title = document.createElement("div");
+      title.className = "chart-card-title";
+      title.textContent = chartData.title || "Data Analytics Chart";
+      header.appendChild(title);
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "chart-wrapper";
+
+      const canvas = document.createElement("canvas");
+      canvas.id = "chart-" + Math.random().toString(36).slice(2);
+      wrapper.appendChild(canvas);
+
+      card.appendChild(header);
+      card.appendChild(wrapper);
+      chatContainer.appendChild(card);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      const chartType = chartData.chart_type || "bar";
+      const colors = [
+        "rgba(59, 130, 246, 0.8)",
+        "rgba(16, 185, 129, 0.8)",
+        "rgba(245, 158, 11, 0.8)",
+        "rgba(139, 92, 246, 0.8)",
+        "rgba(236, 72, 153, 0.8)",
+        "rgba(14, 165, 233, 0.8)",
+        "rgba(249, 115, 22, 0.8)"
+      ];
+
+      const borderColors = colors.map(c => c.replace("0.8", "1.0"));
+
+      new Chart(canvas, {
+        type: chartType,
+        data: {
+          labels: chartData.labels || [],
+          datasets: [{
+            label: chartData.dataset_label || "Value",
+            data: chartData.values || [],
+            backgroundColor: (chartType === 'line') ? 'rgba(59, 130, 246, 0.15)' : colors,
+            borderColor: (chartType === 'line') ? '#3b82f6' : borderColors,
+            borderWidth: 2,
+            tension: 0.3,
+            fill: (chartType === 'line')
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: (chartType === 'pie' || chartType === 'doughnut'),
+              position: 'bottom'
+            }
+          },
+          scales: (chartType === 'pie' || chartType === 'doughnut') ? {} : {
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(0, 0, 0, 0.05)' }
+            },
+            x: {
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+
     function setUIMode(mode) {
       if (mode === 'hero') {
         document.body.classList.remove('mode-chat');
@@ -731,6 +838,15 @@
             if (event.type === "tool") {
               if (typingEl.parentNode) typingEl.remove();
               addTrace(event);
+
+              if (event.tool === "render_chart") {
+                try {
+                  const parsed = JSON.parse(event.result);
+                  if (parsed && parsed.chart) {
+                    renderChartCard(parsed.chart);
+                  }
+                } catch (e) { }
+              }
             } else if (event.type === "token") {
               if (typingEl.parentNode) typingEl.remove();
               if (!botBubble) botBubble = addMsg("bot", "");

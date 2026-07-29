@@ -51,9 +51,9 @@ def sql_query(query: str) -> str:
 
 
 def get_schema(table_name: str = "") -> str:
-    """Return column names and types for a specific table, or all tables if none given.
-    Call this BEFORE writing any query to avoid guessing column names.
-    Tables available: 'clients', 'orr_ratings'."""
+    """Return database tables and column schemas.
+    Call this BEFORE writing any query to discover available tables and column names.
+    If table_name is blank, returns schemas for all tables in the database ('clients', 'orr_ratings')."""
     try:
         conn = _connect()
         cur = conn.cursor()
@@ -69,16 +69,6 @@ def get_schema(table_name: str = "") -> str:
         return json.dumps(schema)
     except Exception as e:
         return json.dumps({"error": str(e)})
-
-
-def list_tables() -> str:
-    """List every table available in the database."""
-    conn = _connect()
-    cur = conn.cursor()
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    tables = [r["name"] for r in cur.fetchall()]
-    conn.close()
-    return json.dumps({"tables": tables})
 
 
 def lookup_client(identifier: str) -> str:
@@ -125,32 +115,38 @@ def get_client_orr(t24_id: str) -> str:
     return json.dumps({"result": rows})
 
 
-def calculator(expression: str) -> str:
-    """Evaluate a basic arithmetic expression, e.g. '(5000000000 * 0.15) / 12'.
-    Only digits and + - * / ( ) . are allowed."""
-    if not re.fullmatch(r"[0-9\.\+\-\*\/\(\)\s]+", expression):
-        return json.dumps({"error": "Invalid characters in expression."})
-    try:
-        result = eval(expression, {"__builtins__": {}}, {})
-        return json.dumps({"result": result})
-    except Exception as e:
-        return json.dumps({"error": str(e)})
-
-
 def get_current_datetime() -> str:
     """Return the current server date/time. Use this instead of guessing
     'today's date' for any date-relative or financial-year query."""
     return json.dumps({"now": datetime.now().isoformat()})
 
 
+def render_chart(chart_type: str, title: str, labels: list, values: list, dataset_label: str = "Value") -> str:
+    """Render a visual chart in the chat UI for analytics, comparisons, distribution, or trends.
+    Supported chart_type: 'bar', 'line', 'pie', 'doughnut'.
+    - labels: array of category or entity names (e.g. ['Corporate', 'Commercial', 'Retail'])
+    - values: array of corresponding numeric values (e.g. [150000000, 85000000, 42000000])
+    - title: chart heading description
+    - dataset_label: label for the dataset (e.g. 'Sales (PKR)', 'Count', 'Equity')"""
+    return json.dumps({
+        "status": "rendered",
+        "chart": {
+            "chart_type": chart_type,
+            "title": title,
+            "labels": labels,
+            "values": values,
+            "dataset_label": dataset_label
+        }
+    })
+
+
 TOOL_DISPATCH = {
-    "sql_query":          sql_query,
-    "get_schema":         get_schema,
-    "list_tables":        list_tables,
-    "lookup_client":      lookup_client,
-    "get_client_orr":     get_client_orr,
-    "calculator":         calculator,
+    "sql_query":            sql_query,
+    "get_schema":           get_schema,
+    "lookup_client":        lookup_client,
+    "get_client_orr":       get_client_orr,
     "get_current_datetime": get_current_datetime,
+    "render_chart":         render_chart,
 }
 
 TOOL_SCHEMAS = [
@@ -176,18 +172,10 @@ TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "table_name": {"type": "string", "description": "Optional table name. Leave blank for all tables."}
+                    "table_name": {"type": "string", "description": "Optional table name. Leave blank to list all tables and schemas."}
                 },
                 "required": [],
             },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "list_tables",
-            "description": list_tables.__doc__.strip(),
-            "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
     {
@@ -224,21 +212,45 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
-            "name": "calculator",
-            "description": calculator.__doc__.strip(),
-            "parameters": {
-                "type": "object",
-                "properties": {"expression": {"type": "string"}},
-                "required": ["expression"],
-            },
+            "name": "get_current_datetime",
+            "description": get_current_datetime.__doc__.strip(),
+            "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
     {
         "type": "function",
         "function": {
-            "name": "get_current_datetime",
-            "description": get_current_datetime.__doc__.strip(),
-            "parameters": {"type": "object", "properties": {}, "required": []},
+            "name": "render_chart",
+            "description": render_chart.__doc__.strip(),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "chart_type": {
+                        "type": "string",
+                        "enum": ["bar", "line", "pie", "doughnut"],
+                        "description": "Visual chart format to render."
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Title heading for the chart."
+                    },
+                    "labels": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Category or entity names for X-axis / slices."
+                    },
+                    "values": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "Numeric values corresponding to each label."
+                    },
+                    "dataset_label": {
+                        "type": "string",
+                        "description": "Label for the metric series (e.g. 'Sales (PKR)')."
+                    }
+                },
+                "required": ["chart_type", "title", "labels", "values"],
+            },
         },
     },
 ]
