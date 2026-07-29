@@ -810,7 +810,7 @@
         speechRecognition.onresult = null;
         speechRecognition.onerror = null;
         speechRecognition.onend = null;
-        try { speechRecognition.abort(); } catch (err) {}
+        try { speechRecognition.abort(); } catch (err) { }
       }
 
       speechRecognition = new SpeechRecognition();
@@ -911,7 +911,7 @@
         if (currentVoiceMode !== 'SUBMITTING') {
           try {
             speechRecognition.start();
-          } catch (err) {}
+          } catch (err) { }
         }
       };
 
@@ -923,14 +923,14 @@
       }
     }
 
-    // Dynamic ending condition: 1.3s of silence after speech input finishes
+    // Dynamic ending condition: 2.5s of silence after speech input finishes
     function scheduleSilenceEnd() {
       if (silenceTimer) clearTimeout(silenceTimer);
       silenceTimer = setTimeout(() => {
         if (currentVoiceMode === 'LISTENING_QUERY' && finalQueryText.trim()) {
           triggerVoiceSubmit();
         }
-      }, 1300); // 1.3 seconds silence timeout
+      }, 2500); // 2.5 seconds silence timeout
     }
 
     function triggerVoiceSubmit() {
@@ -944,7 +944,7 @@
       // Detach event handlers and abort current recognition session during submission
       if (speechRecognition) {
         speechRecognition.onend = null;
-        try { speechRecognition.abort(); } catch (err) {}
+        try { speechRecognition.abort(); } catch (err) { }
       }
 
       sendQuery(textToSend);
