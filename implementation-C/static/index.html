@@ -786,6 +786,13 @@
       headerMicBadge.className = "mic-badge listening";
       bottomMicBtn.classList.remove("active");
       heroWaveform.classList.remove("active");
+      input.value = '';
+      input.placeholder = "Ask something or say 'Alfa'...";
+
+      // Stop speech recognition so event.results is cleared for the next turn
+      if (speechRecognition) {
+        try { speechRecognition.stop(); } catch (err) {}
+      }
     }
 
     function initSpeechRecognition() {
@@ -818,7 +825,7 @@
       speechRecognition.onresult = (event) => {
         let fullTranscript = '';
 
-        // Accumulate entire transcript sequence for complete accuracy
+        // Accumulate transcript sequence for the current active recognition session
         for (let i = 0; i < event.results.length; ++i) {
           fullTranscript += event.results[i][0].transcript + ' ';
         }
@@ -835,17 +842,20 @@
             statusPillText.textContent = 'Wake word "Alfa" detected • Listening...';
             heroText.classList.remove("placeholder");
 
-            // Extract everything spoken after the wake word (e.g. "alfa get me some top 5 clients from db")
+            // Extract everything spoken after the wake word
             const wakeIndex = match.index;
             let textAfterWake = rawSpokenText.slice(wakeIndex + match[0].length).replace(/^[,\s\-.:]+/, '').trim();
 
             if (textAfterWake) {
               finalQueryText = textAfterWake;
               heroText.textContent = finalQueryText;
+              input.value = finalQueryText;
               scheduleSilenceEnd();
             } else {
               finalQueryText = '';
               heroText.textContent = 'Listening...';
+              input.value = '';
+              input.placeholder = 'Listening...';
             }
           } else {
             // Spoken text without wake word yet - stay in idle mode
@@ -853,6 +863,9 @@
             heroText.textContent = 'Say "Alfa" to start';
             heroWaveform.classList.remove("active");
             bottomMicBtn.classList.remove("active");
+            if (currentVoiceMode === 'IDLE_WAITING_WAKEWORD') {
+              input.placeholder = "Ask something or say 'Alfa'...";
+            }
           }
         }
         // 2. ACTIVE QUERY LISTENING MODE
@@ -869,9 +882,13 @@
             finalQueryText = queryPart;
             heroText.classList.remove("placeholder");
             heroText.textContent = finalQueryText;
+            input.value = finalQueryText;
             scheduleSilenceEnd();
           } else {
             heroText.textContent = 'Listening...';
+            if (!input.value) {
+              input.placeholder = 'Listening...';
+            }
           }
         }
       };
@@ -918,11 +935,17 @@
       silenceTimer = null;
 
       const textToSend = finalQueryText.trim();
+
+      // Stop speech recognition to clear past transcripts from event.results array
+      if (speechRecognition) {
+        try { speechRecognition.stop(); } catch (err) {}
+      }
+
       sendQuery(textToSend);
     }
 
     // Toggle active listening mode on clicking mic button or waveform container
-    function toggleActiveListening() {
+    function toggleActiveListening(e) {
       if (currentVoiceMode === 'LISTENING_QUERY') {
         if (finalQueryText.trim()) {
           triggerVoiceSubmit();
@@ -936,8 +959,13 @@
         bottomMicBtn.classList.add("active");
         heroText.classList.remove("placeholder");
         heroText.textContent = "Listening...";
+        input.value = "";
+        input.placeholder = "Listening...";
         statusPillText.textContent = "Listening for your voice query...";
-        setUIMode('hero');
+        // If triggered from hero waveform, stay in hero mode; if from bottom mic in chat view, stay in chat view!
+        if (e && e.currentTarget === heroWaveform) {
+          setUIMode('hero');
+        }
       }
     }
 
