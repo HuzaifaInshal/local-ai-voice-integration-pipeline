@@ -52,7 +52,7 @@ Rules you must always follow:
 """
 
 # Disables Qwen3's <think>...</think> reasoning block if a Qwen3 model is specified.
-EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": True}} if "qwen3" in MODEL_NAME.lower() else None
+EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": False}} if "qwen3" in MODEL_NAME.lower() else None
 
 client = OpenAI(base_url=VLLM_BASE_URL, api_key="EMPTY")
 async_client = AsyncOpenAI(base_url=VLLM_BASE_URL, api_key="EMPTY")
