@@ -24,7 +24,6 @@ from openai import OpenAI, AsyncOpenAI
 from tools import TOOL_DISPATCH, TOOL_SCHEMAS
 
 VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
-# MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
 MAX_ITERATIONS = 6
 MAX_HISTORY_MESSAGES = 6  # rolling window, excludes system prompt, 16 for Qwen3-32B-AWQ
 
@@ -47,8 +46,8 @@ Rules you must always follow:
 4. If you are unsure of a table or column name, call get_schema first instead
    of guessing.
 5. Format monetary values (client_sales, client_equity) in readable PKR format when presenting to users.
-6. When responding to analytics, comparisons, distributions, or rankings of numeric data (e.g., top clients by sales, segment breakdowns, ORR history), call render_chart to render a visual chart alongside your written answer.
-7. Once you have enough real tool output to answer, give a direct, concise final answer.
+6. When responding to analytics, comparisons, distributions, or rankings of numeric data (e.g., top clients by sales, segment breakdowns, ORR history), call the `render_chart` tool to render the chart.
+7. CRITICAL: NEVER output base64 data strings (e.g. data:image/...), raw image tags (`![...]`), or code to generate images. All charts are rendered exclusively via the `render_chart` tool call. Keep your text output clean and concise.
 """
 
 # Disables Qwen3's <think>...</think> reasoning block if a Qwen3 model is specified.
