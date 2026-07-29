@@ -46,8 +46,8 @@ Rules you must always follow:
 4. If you are unsure of a table or column name, call get_schema first instead
    of guessing.
 5. Format monetary values (client_sales, client_equity) in readable PKR format when presenting to users.
-6. When responding to analytics, comparisons, distributions, or rankings of numeric data (e.g., top clients by sales, segment breakdowns, ORR history), call the `render_chart` tool to render the chart.
-7. CRITICAL: NEVER output base64 data strings (e.g. data:image/...), raw image tags (`![...]`), or code to generate images. All charts are rendered exclusively via the `render_chart` tool call. Keep your text output clean and concise.
+6. When responding to analytics, comparisons, distributions, or rankings of numeric data (e.g., top clients by sales, segment breakdowns, ORR history), call the `render_chart` tool to render the chart. You MUST have the actual data from a prior sql_query/tool result before calling render_chart — never call it with empty labels or values.
+7. ABSOLUTE RULE: Your text replies must NEVER contain base64 strings, data URIs (data:image/...), markdown image tags (![...]), matplotlib/PIL code, or any binary image content. If you need to show a chart, call the render_chart tool only. Violating this rule is a critical failure.
 """
 
 # Disables Qwen3's <think>...</think> reasoning block if a Qwen3 model is specified.
@@ -185,8 +185,10 @@ async def run_agent_stream(session_id: str, user_message: str):
             delta = chunk.choices[0].delta
 
             if getattr(delta, "content", None):
-                content_buf += delta.content
-                yield {"type": "token", "text": delta.content}
+                # Drop any token that is part of a base64/data URI the model is hallucinating
+                if "data:image" not in content_buf and "data:image" not in delta.content:
+                    content_buf += delta.content
+                    yield {"type": "token", "text": delta.content}
 
             if getattr(delta, "tool_calls", None):
                 for tc_delta in delta.tool_calls:

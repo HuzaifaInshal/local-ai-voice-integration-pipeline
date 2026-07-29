@@ -122,12 +122,16 @@ def get_current_datetime() -> str:
 
 
 def render_chart(chart_type: str, title: str, labels: list, values: list, dataset_label: str = "Value") -> str:
-    """Render a visual chart in the chat UI for analytics, comparisons, distribution, or trends.
+    """Render a visual chart in the chat UI. ONLY call this AFTER you have real data from a prior tool result.
+    NEVER call with empty labels or values — fetch the data first via sql_query, then call this.
+    NEVER output base64, data URIs, or image tags in text — this tool handles all rendering.
     Supported chart_type: 'bar', 'line', 'pie', 'doughnut'.
     - labels: array of category or entity names (e.g. ['Corporate', 'Commercial', 'Retail'])
     - values: array of corresponding numeric values (e.g. [150000000, 85000000, 42000000])
     - title: chart heading description
     - dataset_label: label for the dataset (e.g. 'Sales (PKR)', 'Count', 'Equity')"""
+    if not labels or not values:
+        return json.dumps({"error": "render_chart called with empty labels or values. Call sql_query first to fetch real data, then call render_chart with the results."})
     return json.dumps({
         "status": "rendered",
         "chart": {
