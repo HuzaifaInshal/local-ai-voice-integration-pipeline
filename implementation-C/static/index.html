@@ -323,7 +323,7 @@
     .msg {
       padding: 14px 18px;
       border-radius: 16px;
-      max-width: 82%;
+      max-width: 95%;
       line-height: 1.6;
       font-size: 15px;
       word-break: break-word;
@@ -703,9 +703,7 @@
     marked.setOptions({ breaks: true, gfm: true });
 
     function renderMarkdown(text) {
-      // Strip any image tags the model may have hallucinated before rendering
-      const clean = text.replace(/!\[.*?\]\(.*?\)/g, "").replace(/<img[^>]*>/gi, "");
-      return marked.parse(clean);
+      return marked.parse(text);
     }
 
     function addMsg(role, text) {
@@ -745,8 +743,15 @@
 
     function appendToken(bubble, text) {
       bubble._rawText = (bubble._rawText || "") + text;
-      bubble.innerHTML = renderMarkdown(bubble._rawText);
+      // Stream as plain text; markdown is rendered once streaming is done
+      bubble.textContent = bubble._rawText;
       chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function finalizeMarkdown(bubble) {
+      if (bubble && bubble._rawText) {
+        bubble.innerHTML = renderMarkdown(bubble._rawText);
+      }
     }
 
     function renderChartCard(chartData) {
@@ -903,6 +908,7 @@
         if (typingEl.parentNode) typingEl.remove();
         addMsg("bot", "Error: " + e.message);
       } finally {
+        finalizeMarkdown(botBubble);
         sendBtn.disabled = false;
         // Reset voice state to listen for wake word again
         resetVoiceStateToIdle();
