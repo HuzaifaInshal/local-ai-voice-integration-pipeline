@@ -844,6 +844,7 @@
         if (currentVoiceMode === 'IDLE_WAITING_WAKEWORD') {
           if (match) {
             currentVoiceMode = 'LISTENING_QUERY';
+            setUIMode('hero');
             heroWaveform.classList.add("active");
             bottomMicBtn.classList.add("active");
             statusPillText.textContent = 'Wake word "Alfa" detected • Listening...';
@@ -877,6 +878,7 @@
         }
         // 2. ACTIVE QUERY LISTENING MODE
         else if (currentVoiceMode === 'LISTENING_QUERY') {
+          setUIMode('hero');
           heroWaveform.classList.add("active");
           bottomMicBtn.classList.add("active");
 
@@ -961,6 +963,7 @@
         }
       } else {
         currentVoiceMode = 'LISTENING_QUERY';
+        setUIMode('hero');
         heroWaveform.classList.add("active");
         bottomMicBtn.classList.add("active");
         heroText.classList.remove("placeholder");
@@ -968,10 +971,6 @@
         input.value = "";
         input.placeholder = "Listening...";
         statusPillText.textContent = "Listening for your voice query...";
-        // If triggered from hero waveform, stay in hero mode; if from bottom mic in chat view, stay in chat view!
-        if (e && e.currentTarget === heroWaveform) {
-          setUIMode('hero');
-        }
       }
     }
 
