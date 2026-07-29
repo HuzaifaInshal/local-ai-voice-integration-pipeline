@@ -789,13 +789,11 @@
       input.value = '';
       input.placeholder = "Ask something or say 'Alfa'...";
 
-      // Stop speech recognition so event.results is cleared for the next turn
-      if (speechRecognition) {
-        try { speechRecognition.stop(); } catch (err) {}
-      }
+      // Re-instantiate speech recognition afresh for the next turn
+      restartSpeechRecognition();
     }
 
-    function initSpeechRecognition() {
+    function restartSpeechRecognition() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
       if (!SpeechRecognition) {
@@ -804,6 +802,15 @@
         heroWaveform.classList.remove("active");
         heroText.textContent = "Voice input unavailable";
         return;
+      }
+
+      // Detach handlers and abort existing recognition session if running
+      if (speechRecognition) {
+        speechRecognition.onstart = null;
+        speechRecognition.onresult = null;
+        speechRecognition.onerror = null;
+        speechRecognition.onend = null;
+        try { speechRecognition.abort(); } catch (err) {}
       }
 
       speechRecognition = new SpeechRecognition();
@@ -900,17 +907,15 @@
       };
 
       speechRecognition.onend = () => {
-        // Automatically restart speech recognition so wake word "alfa" is always active
+        // Automatically restart speech recognition if it unexpectedly drops while not submitting
         if (currentVoiceMode !== 'SUBMITTING') {
           try {
             speechRecognition.start();
-          } catch (err) {
-            // Already started or restarting
-          }
+          } catch (err) {}
         }
       };
 
-      // Start initial listening
+      // Start fresh listening
       try {
         speechRecognition.start();
       } catch (err) {
@@ -936,9 +941,10 @@
 
       const textToSend = finalQueryText.trim();
 
-      // Stop speech recognition to clear past transcripts from event.results array
+      // Detach event handlers and abort current recognition session during submission
       if (speechRecognition) {
-        try { speechRecognition.stop(); } catch (err) {}
+        speechRecognition.onend = null;
+        try { speechRecognition.abort(); } catch (err) {}
       }
 
       sendQuery(textToSend);
@@ -974,7 +980,7 @@
 
     // Initialize on page load
     window.addEventListener("DOMContentLoaded", () => {
-      initSpeechRecognition();
+      resetVoiceStateToIdle();
     });
   </script>
 </body>
