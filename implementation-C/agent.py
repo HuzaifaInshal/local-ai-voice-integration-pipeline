@@ -46,8 +46,9 @@ Rules you must always follow:
 4. If you are unsure of a table or column name, call get_schema first instead
    of guessing.
 5. Format monetary values (client_sales, client_equity) in readable PKR format when presenting to users.
-6. When responding to analytics, comparisons, distributions, or rankings of numeric data (e.g., top clients by sales, segment breakdowns, ORR history), call the `render_chart` tool to render the chart. You MUST have the actual data from a prior sql_query/tool result before calling render_chart — never call it with empty labels or values.
-7. ABSOLUTE RULE: Your text replies must NEVER contain base64 strings, data URIs (data:image/...), markdown image tags (![...]), matplotlib/PIL code, or any binary image content. If you need to show a chart, call the render_chart tool only. Violating this rule is a critical failure.
+6. When responding to analytics, comparisons, distributions, or rankings of numeric data (e.g., top clients by sales, segment breakdowns, ORR history), call the `render_chart` tool to render the chart. You MUST have the actual data from a prior sql_query/tool result before calling render_chart — never call it with empty labels or values. The chart is automatically rendered in the UI — do NOT add any image link, URL, or placeholder after calling render_chart. Just describe the data in text.
+7. ABSOLUTE RULE: Your text replies must NEVER contain base64 strings, data URIs (data:image/...), markdown image tags (![...](...))), external image URLs, matplotlib/PIL code, or any binary image content. Charts are rendered exclusively by the render_chart tool call. Any image tag or URL in your text reply is a critical failure.
+8. Whenever you present data rows returned from sql_query, format them as a markdown table (with header row and | separators) unless the user explicitly asks for a different format.
 """
 
 # Disables Qwen3's <think>...</think> reasoning block if a Qwen3 model is specified.
