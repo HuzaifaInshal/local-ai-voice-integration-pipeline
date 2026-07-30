@@ -20,6 +20,7 @@ import json
 import os
 from openai import OpenAI, AsyncOpenAI
 
+from artifacts import build_artifacts
 from tools import TOOL_DISPATCH, TOOL_SCHEMAS
 
 VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
@@ -48,6 +49,8 @@ Rules you must always follow:
 5. Once you have enough real tool output to answer, give a direct, concise final
    answer with no further tool calls.
 6. Format monetary values (client_sales, client_equity) in readable PKR format when presenting to users.
+7. You may use normal markdown such as **bold** and small markdown tables in final answers.
+   Prefer concise summaries because the UI can render full tool results separately as tables/charts.
 """
 
 # Disables Qwen3's <think>...</think> reasoning block if a Qwen3 model is specified.
@@ -106,6 +109,7 @@ def _run_tool(name: str, args: dict) -> str:
 def run_agent(session_id: str, user_message: str):
     convo.append(session_id, {"role": "user", "content": user_message})
     trace = []
+    artifacts = []
 
     for _ in range(MAX_ITERATIONS):
         history = convo.get(session_id)
@@ -136,14 +140,15 @@ def run_agent(session_id: str, user_message: str):
                     args = {}
                 result = _run_tool(tc.function.name, args)
                 trace.append({"tool": tc.function.name, "args": args, "result": result})
+                artifacts.extend(build_artifacts(tc.function.name, args, result))
                 convo.append(session_id, {"role": "tool", "tool_call_id": tc.id, "content": result})
             continue
 
         final_text = msg.content or ""
         convo.append(session_id, {"role": "assistant", "content": final_text})
-        return final_text, trace
+        return final_text, trace, artifacts
 
-    return "Reached max tool-call iterations without a final answer.", trace
+    return "Reached max tool-call iterations without a final answer.", trace, artifacts
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +158,9 @@ def run_agent(session_id: str, user_message: str):
 async def run_agent_stream(session_id: str, user_message: str):
     """Async generator yielding dicts:
       {"type": "tool", "tool": ..., "args": ..., "result": ...}
+      {"type": "table", "title": ..., "columns": [...], "rows": [...]}
+      {"type": "chart", "chart_type": "bar|line", "data": [...]}
+      {"type": "diagram", "nodes": [...], "edges": [...]}
       {"type": "token", "text": ...}
       {"type": "done"}
       {"type": "error", "message": ...}
@@ -218,6 +226,8 @@ async def run_agent_stream(session_id: str, user_message: str):
                     args = {}
                 result = _run_tool(tc["name"], args)
                 yield {"type": "tool", "tool": tc["name"], "args": args, "result": result}
+                for artifact in build_artifacts(tc["name"], args, result):
+                    yield artifact
                 convo.append(session_id, {"role": "tool", "tool_call_id": tc["id"], "content": result})
             continue  # loop again so the model sees the tool results
 

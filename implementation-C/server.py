@@ -38,8 +38,8 @@ def index():
 @app.post("/api/chat")
 def chat(req: ChatRequest):
     """Non-streaming endpoint -- simple to curl/test with."""
-    reply, trace = run_agent(req.session_id, req.message)
-    return {"reply": reply, "trace": trace}
+    reply, trace, artifacts = run_agent(req.session_id, req.message)
+    return {"reply": reply, "trace": trace, "artifacts": artifacts}
 
 
 @app.post("/api/chat/stream")

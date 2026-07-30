@@ -358,6 +358,182 @@
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     }
 
+    .msg.bot.markdown {
+      white-space: normal;
+    }
+
+    .msg.bot.markdown p {
+      margin: 0 0 10px;
+    }
+
+    .msg.bot.markdown p:last-child {
+      margin-bottom: 0;
+    }
+
+    .msg.bot.markdown strong {
+      font-weight: 700;
+    }
+
+    .msg.bot.markdown code {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 1px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    .md-table-wrap {
+      max-width: 100%;
+      overflow-x: auto;
+      margin: 10px 0;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+    }
+
+    .md-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 420px;
+      font-size: 13px;
+      background: #ffffff;
+    }
+
+    .md-table th,
+    .md-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--border-color);
+      text-align: left;
+      vertical-align: top;
+      white-space: normal;
+    }
+
+    .md-table th {
+      background: var(--surface-color);
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .md-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .artifact {
+      align-self: flex-start;
+      max-width: 96%;
+      width: min(720px, 96%);
+      background: #ffffff;
+      border: 1px solid var(--bot-msg-border);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      animation: msgPop 0.3s ease forwards;
+    }
+
+    .artifact-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 10px;
+    }
+
+    .artifact-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    .artifact-table-wrap {
+      max-width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+    }
+
+    .artifact table {
+      width: 100%;
+      min-width: 520px;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .artifact th,
+    .artifact td {
+      padding: 8px 9px;
+      border-bottom: 1px solid var(--border-color);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .artifact th {
+      background: var(--surface-color);
+      font-weight: 700;
+    }
+
+    .artifact tr:last-child td {
+      border-bottom: none;
+    }
+
+    .chart-canvas {
+      width: 100%;
+      height: 280px;
+      display: block;
+    }
+
+    .diagram {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .diagram-node {
+      flex: 1 1 210px;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    .diagram-node-title {
+      padding: 9px 10px;
+      background: var(--surface-color);
+      font-size: 13px;
+      font-weight: 700;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .diagram-field {
+      padding: 7px 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-bottom: 1px solid #f1f5f9;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .diagram-field:last-child {
+      border-bottom: none;
+    }
+
+    .diagram-edges {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .diagram-edge {
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      padding: 7px 10px;
+      width: fit-content;
+      max-width: 100%;
+    }
+
+
     /* Streamed Token Animation */
     .token {
       display: inline;
@@ -636,10 +812,90 @@
     // Expanded Wake Word Regex to capture phonetic variations (alfa, alpha, al fa, al-fa, olfa, elpha, elfa)
     const wakeWordRegex = /\b(alfa|alpha|al\s+fa|al\-fa|olfa|elpha|elfa)\b/i;
 
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function formatInlineMarkdown(text) {
+      let html = escapeHtml(text);
+      html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+      html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      return html;
+    }
+
+    function splitMarkdownTableRow(line) {
+      const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+      return trimmed.split("|").map(cell => cell.trim());
+    }
+
+    function isMarkdownTableSeparator(line) {
+      const cells = splitMarkdownTableRow(line);
+      return cells.length > 1 && cells.every(cell => /^:?-{3,}:?$/.test(cell));
+    }
+
+    function renderMarkdown(text) {
+      const lines = String(text ?? "").split(/\r?\n/);
+      const html = [];
+      let paragraph = [];
+
+      function flushParagraph() {
+        if (!paragraph.length) return;
+        html.push("<p>" + paragraph.map(formatInlineMarkdown).join("<br>") + "</p>");
+        paragraph = [];
+      }
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const next = lines[i + 1] || "";
+
+        if (line.includes("|") && next.includes("|") && isMarkdownTableSeparator(next)) {
+          flushParagraph();
+          const headers = splitMarkdownTableRow(line);
+          i += 2;
+          const rows = [];
+          while (i < lines.length && lines[i].includes("|") && lines[i].trim()) {
+            rows.push(splitMarkdownTableRow(lines[i]));
+            i++;
+          }
+          i--;
+
+          html.push('<div class="md-table-wrap"><table class="md-table"><thead><tr>');
+          headers.forEach(header => html.push("<th>" + formatInlineMarkdown(header) + "</th>"));
+          html.push("</tr></thead><tbody>");
+          rows.forEach(row => {
+            html.push("<tr>");
+            headers.forEach((_, index) => {
+              html.push("<td>" + formatInlineMarkdown(row[index] || "") + "</td>");
+            });
+            html.push("</tr>");
+          });
+          html.push("</tbody></table></div>");
+        } else if (!line.trim()) {
+          flushParagraph();
+        } else {
+          paragraph.push(line);
+        }
+      }
+
+      flushParagraph();
+      return html.join("");
+    }
+
     function addMsg(role, text) {
       const div = document.createElement("div");
       div.className = "msg " + role;
-      div.textContent = text;
+      if (role === "bot") {
+        div.classList.add("markdown");
+        div.dataset.rawMarkdown = text || "";
+        div.innerHTML = renderMarkdown(text || "");
+      } else {
+        div.textContent = text;
+      }
       chatContainer.appendChild(div);
       chatContainer.scrollTop = chatContainer.scrollHeight;
       return div;
@@ -668,11 +924,233 @@
     }
 
     function appendToken(bubble, text) {
-      const span = document.createElement("span");
-      span.className = "token";
-      span.textContent = text;
-      bubble.appendChild(span);
+      bubble.dataset.rawMarkdown = (bubble.dataset.rawMarkdown || "") + text;
+      bubble.innerHTML = renderMarkdown(bubble.dataset.rawMarkdown);
       chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function addTableArtifact(event) {
+      const wrap = document.createElement("div");
+      wrap.className = "artifact";
+
+      const title = document.createElement("div");
+      title.className = "artifact-title";
+      title.textContent = event.title || "Table";
+      wrap.appendChild(title);
+
+      const tableWrap = document.createElement("div");
+      tableWrap.className = "artifact-table-wrap";
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      (event.columns || []).forEach(column => {
+        const th = document.createElement("th");
+        th.textContent = column;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+      (event.rows || []).forEach(row => {
+        const tr = document.createElement("tr");
+        (event.columns || []).forEach(column => {
+          const td = document.createElement("td");
+          td.textContent = row[column] ?? "";
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      tableWrap.appendChild(table);
+      wrap.appendChild(tableWrap);
+
+      if (event.row_count && event.rows && event.row_count > event.rows.length) {
+        const meta = document.createElement("div");
+        meta.className = "artifact-meta";
+        meta.textContent = `Showing ${event.rows.length} of ${event.row_count} rows.`;
+        wrap.appendChild(meta);
+      }
+
+      chatContainer.appendChild(wrap);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function addChartArtifact(event) {
+      const wrap = document.createElement("div");
+      wrap.className = "artifact";
+
+      const title = document.createElement("div");
+      title.className = "artifact-title";
+      title.textContent = event.title || "Chart";
+      wrap.appendChild(title);
+
+      const canvas = document.createElement("canvas");
+      canvas.className = "chart-canvas";
+      canvas.width = 720;
+      canvas.height = 280;
+      wrap.appendChild(canvas);
+
+      const meta = document.createElement("div");
+      meta.className = "artifact-meta";
+      meta.textContent = `${event.chart_type || "chart"} • ${event.x || "x"} vs ${event.y || "y"}`;
+      wrap.appendChild(meta);
+
+      chatContainer.appendChild(wrap);
+      drawChart(canvas, event);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function addDiagramArtifact(event) {
+      const wrap = document.createElement("div");
+      wrap.className = "artifact";
+
+      const title = document.createElement("div");
+      title.className = "artifact-title";
+      title.textContent = event.title || "Diagram";
+      wrap.appendChild(title);
+
+      const diagram = document.createElement("div");
+      diagram.className = "diagram";
+      (event.nodes || []).forEach(node => {
+        const card = document.createElement("div");
+        card.className = "diagram-node";
+
+        const nodeTitle = document.createElement("div");
+        nodeTitle.className = "diagram-node-title";
+        nodeTitle.textContent = node.label || node.id || "Node";
+        card.appendChild(nodeTitle);
+
+        (node.fields || []).forEach(field => {
+          const fieldEl = document.createElement("div");
+          fieldEl.className = "diagram-field";
+          fieldEl.textContent = field;
+          card.appendChild(fieldEl);
+        });
+
+        diagram.appendChild(card);
+      });
+      wrap.appendChild(diagram);
+
+      if (event.edges && event.edges.length) {
+        const edges = document.createElement("div");
+        edges.className = "diagram-edges";
+        event.edges.forEach(edge => {
+          const edgeEl = document.createElement("div");
+          edgeEl.className = "diagram-edge";
+          edgeEl.textContent = `${edge.from} -> ${edge.to} via ${edge.label || "relationship"}`;
+          edges.appendChild(edgeEl);
+        });
+        wrap.appendChild(edges);
+      }
+
+      chatContainer.appendChild(wrap);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function drawChart(canvas, event) {
+      const ctx = canvas.getContext("2d");
+      const data = Array.isArray(event.data) ? event.data : [];
+      const width = canvas.width;
+      const height = canvas.height;
+      const pad = { top: 18, right: 20, bottom: 58, left: 58 };
+      const plotW = width - pad.left - pad.right;
+      const plotH = height - pad.top - pad.bottom;
+      const values = data.map(point => Number(point.y)).filter(Number.isFinite);
+      if (!values.length) return;
+
+      const max = Math.max(...values, 1);
+      const min = event.chart_type === "line" ? Math.min(...values, 0) : 0;
+      const range = Math.max(max - min, 1);
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.font = "12px Inter, sans-serif";
+      ctx.strokeStyle = "#e5e7eb";
+      ctx.fillStyle = "#6b7280";
+      ctx.lineWidth = 1;
+
+      for (let i = 0; i <= 4; i++) {
+        const y = pad.top + (plotH * i / 4);
+        const value = max - (range * i / 4);
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(width - pad.right, y);
+        ctx.stroke();
+        ctx.fillText(formatAxisNumber(value), 8, y + 4);
+      }
+
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.beginPath();
+      ctx.moveTo(pad.left, pad.top);
+      ctx.lineTo(pad.left, pad.top + plotH);
+      ctx.lineTo(width - pad.right, pad.top + plotH);
+      ctx.stroke();
+
+      if (event.chart_type === "line") {
+        drawLineChart(ctx, data, pad, plotW, plotH, min, range);
+      } else {
+        drawBarChart(ctx, data, pad, plotW, plotH, min, range);
+      }
+    }
+
+    function drawBarChart(ctx, data, pad, plotW, plotH, min, range) {
+      const gap = 8;
+      const barW = Math.max(10, (plotW - gap * (data.length - 1)) / data.length);
+      data.forEach((point, index) => {
+        const value = Number(point.y);
+        if (!Number.isFinite(value)) return;
+        const x = pad.left + index * (barW + gap);
+        const h = Math.max(1, ((value - min) / range) * plotH);
+        const y = pad.top + plotH - h;
+        ctx.fillStyle = "#3b82f6";
+        ctx.fillRect(x, y, barW, h);
+        drawXAxisLabel(ctx, point.x, x + barW / 2, pad.top + plotH + 18, barW + gap);
+      });
+    }
+
+    function drawLineChart(ctx, data, pad, plotW, plotH, min, range) {
+      ctx.strokeStyle = "#2563eb";
+      ctx.fillStyle = "#2563eb";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      data.forEach((point, index) => {
+        const value = Number(point.y);
+        if (!Number.isFinite(value)) return;
+        const x = pad.left + (data.length === 1 ? plotW / 2 : index * plotW / (data.length - 1));
+        const y = pad.top + plotH - ((value - min) / range) * plotH;
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      data.forEach((point, index) => {
+        const value = Number(point.y);
+        if (!Number.isFinite(value)) return;
+        const x = pad.left + (data.length === 1 ? plotW / 2 : index * plotW / (data.length - 1));
+        const y = pad.top + plotH - ((value - min) / range) * plotH;
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        drawXAxisLabel(ctx, point.x, x, pad.top + plotH + 18, 90);
+      });
+    }
+
+    function drawXAxisLabel(ctx, label, x, y, maxWidth) {
+      const text = String(label ?? "");
+      const shortened = text.length > 18 ? text.slice(0, 15) + "..." : text;
+      ctx.save();
+      ctx.fillStyle = "#6b7280";
+      ctx.textAlign = "center";
+      ctx.translate(x, y);
+      ctx.rotate(-Math.PI / 7);
+      ctx.fillText(shortened, 0, 0, maxWidth);
+      ctx.restore();
+    }
+
+    function formatAxisNumber(value) {
+      if (Math.abs(value) >= 1000000000) return (value / 1000000000).toFixed(1) + "B";
+      if (Math.abs(value) >= 1000000) return (value / 1000000).toFixed(1) + "M";
+      if (Math.abs(value) >= 1000) return (value / 1000).toFixed(1) + "K";
+      return Number(value).toFixed(value % 1 === 0 ? 0 : 1);
     }
 
     function setUIMode(mode) {
@@ -731,6 +1209,15 @@
             if (event.type === "tool") {
               if (typingEl.parentNode) typingEl.remove();
               addTrace(event);
+            } else if (event.type === "table") {
+              if (typingEl.parentNode) typingEl.remove();
+              addTableArtifact(event);
+            } else if (event.type === "chart") {
+              if (typingEl.parentNode) typingEl.remove();
+              addChartArtifact(event);
+            } else if (event.type === "diagram") {
+              if (typingEl.parentNode) typingEl.remove();
+              addDiagramArtifact(event);
             } else if (event.type === "token") {
               if (typingEl.parentNode) typingEl.remove();
               if (!botBubble) botBubble = addMsg("bot", "");
