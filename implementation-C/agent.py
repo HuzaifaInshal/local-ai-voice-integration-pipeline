@@ -83,37 +83,37 @@ IMAGE_MARKDOWN_RE = re.compile(r"!\[[^\]]*\]\([^)]+\)")
 DATA_IMAGE_RE = re.compile(r"data:image/[^;\s]+;base64,[A-Za-z0-9+/=\s]+")
 
 
-def _sanitize_final_text(text: str) -> str:
-    """Keep final assistant text from duplicating UI-rendered artifacts."""
-    if not text:
-        return ""
+# def _sanitize_fin_sanitize_final_textal_text(text: str) -> str:
+#     """Keep final assistant text from duplicating UI-rendered artifacts."""
+#     if not text:
+#         return ""
 
-    cleaned = DATA_IMAGE_RE.sub("[chart rendered above]", text)
-    cleaned = IMAGE_MARKDOWN_RE.sub("[chart rendered above]", cleaned)
+#     cleaned = DATA_IMAGE_RE.sub("[chart rendered above]", text)
+#     cleaned = IMAGE_MARKDOWN_RE.sub("[chart rendered above]", cleaned)
 
-    raw_lines = cleaned.splitlines()
-    table_like = [_looks_like_plain_table_line(line.strip()) for line in raw_lines]
-    lines = []
-    for index, line in enumerate(raw_lines):
-        stripped = line.strip()
-        if _looks_like_markdown_table_line(stripped):
-            continue
-        if table_like[index] and (
-            (index > 0 and table_like[index - 1]) or
-            (index + 1 < len(table_like) and table_like[index + 1])
-        ):
-            continue
-        lines.append(line)
+#     raw_lines = cleaned.splitlines()
+#     table_like = [_looks_like_plain_table_line(line.strip()) for line in raw_lines]
+#     lines = []
+#     for index, line in enumerate(raw_lines):
+#         stripped = line.strip()
+#         if _looks_like_markdown_table_line(stripped):
+#             continue
+#         if table_like[index] and (
+#             (index > 0 and table_like[index - 1]) or
+#             (index + 1 < len(table_like) and table_like[index + 1])
+#         ):
+#             continue
+#         lines.append(line)
 
-    final = "\n".join(lines).strip()
-    final = re.sub(
-        r"(?i)^here is (?:a|the) (bar|line|donut|pie|scatter|horizontal bar)? ?chart[^:\n]*:\s*",
-        "The requested chart has been rendered.",
-        final,
-    )
-    if final.startswith("The requested chart has been rendered."):
-        final = final.replace("[chart rendered above]", "")
-    return final.strip()
+#     final = "\n".join(lines).strip()
+#     final = re.sub(
+#         r"(?i)^here is (?:a|the) (bar|line|donut|pie|scatter|horizontal bar)? ?chart[^:\n]*:\s*",
+#         "The requested chart has been rendered.",
+#         final,
+#     )
+#     if final.startswith("The requested chart has been rendered."):
+#         final = final.replace("[chart rendered above]", "")
+#     return final.strip()
 
 
 def _looks_like_markdown_table_line(line: str) -> bool:
@@ -231,7 +231,7 @@ def run_agent(session_id: str, user_message: str):
                 convo.append(session_id, {"role": "tool", "tool_call_id": tc.id, "content": result})
             continue
 
-        final_text = _sanitize_final_text(msg.content or "")
+        final_text = msg.content or ""
         convo.append(session_id, {"role": "assistant", "content": final_text})
         return final_text, trace, artifacts
 
@@ -318,10 +318,7 @@ async def run_agent_stream(session_id: str, user_message: str):
             continue  # loop again so the model sees the tool results
 
         # No tool calls in this turn -> it was the final answer
-        final_text = _sanitize_final_text(content_buf)
-        if final_text:
-            yield {"type": "token", "text": final_text}
-        convo.append(session_id, {"role": "assistant", "content": final_text})
+        convo.append(session_id, {"role": "assistant", "content": content_buf})
         yield {"type": "done"}
         return
 
