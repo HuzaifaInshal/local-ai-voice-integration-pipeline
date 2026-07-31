@@ -37,7 +37,10 @@ import requests
 
 from db_setup import build_database
 
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-14B-Instruct")
+# MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
+MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-14B-Instruct-AWQ")
+# MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-14B-AWQ")  # Note: unquantized 14B FP16 will OOM on 2x T4 GPUs
+# MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-32B-AWQ")
 VLLM_PORT = 8000
 APP_PORT = 8080
 MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "4096"))  # lowered from 8192: T4s only report ~14.56 GiB usable, KV cache needs the headroom
@@ -48,8 +51,10 @@ VLLM_HEALTH_URL = f"http://localhost:{VLLM_PORT}/health"
 def start_vllm():
     print(f"[main] Launching vLLM server for {MODEL_NAME} ...")
     env = os.environ.copy()
-    # T4 = Turing architecture: no FlashAttention-2, force xFormers backend.
+    # T4 = Turing architecture: no FlashAttention-2, force xFormers backend & silence unsupported FlashInfer sampler
     env["VLLM_ATTENTION_BACKEND"] = "XFORMERS"
+    env["VLLM_USE_FLASHINFER_SAMPLER"] = "0"
+    env["VLLM_USE_V1"] = "0"
 
     cmd = [
         sys.executable, "-m", "vllm.entrypoints.openai.api_server",
