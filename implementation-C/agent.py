@@ -18,6 +18,7 @@ tokens you actually wanted to see.
 
 import json
 import os
+import re
 from openai import OpenAI, AsyncOpenAI
 
 from artifacts import build_artifacts, render_chart_result, reset_artifacts
@@ -49,15 +50,78 @@ Rules you must always follow:
 5. Once you have enough real tool output to answer, give a direct, concise final
    answer with no further tool calls.
 6. Format monetary values (client_sales, client_equity) in readable PKR format when presenting to users.
-7. You may use normal markdown such as **bold** and small markdown tables in final answers.
-   Prefer concise summaries because the UI can render full tool results separately as tables/charts.
+7. You may use normal markdown such as **bold** in final answers, but you must not
+   create markdown tables, ASCII tables, image markdown, base64 images, HTML charts,
+   SVG, Mermaid, or any other self-rendered visual/table content.
+   The UI renders real tables/charts/diagrams from tool artifacts separately.
 8. Only call render_chart when the user explicitly asks for a chart, graph, plot,
    visualization, pie, donut, line, bar, scatter, or asks to show prior results as a chart.
 9. When calling render_chart, use only columns that exist in the latest real tool result.
    If the requested chart columns are ambiguous, ask a clarification instead of guessing.
 10. For chart requests, first retrieve or reuse real data with tools, then call render_chart
     with the requested chart type and columns. Never invent chart data.
+11. After render_chart succeeds, your final answer should be a short textual summary only.
+    Do not repeat the full table, do not embed a chart image, and do not say "here is"
+    followed by generated visual markup. Mention that the chart/table has been rendered
+    in the chat if useful.
 """
+
+IMAGE_MARKDOWN_RE = re.compile(r"!\[[^\]]*\]\([^)]+\)")
+DATA_IMAGE_RE = re.compile(r"data:image/[^;\s]+;base64,[A-Za-z0-9+/=\s]+")
+
+
+def _sanitize_final_text(text: str) -> str:
+    """Keep final assistant text from duplicating UI-rendered artifacts."""
+    if not text:
+        return ""
+
+    cleaned = DATA_IMAGE_RE.sub("[chart rendered above]", text)
+    cleaned = IMAGE_MARKDOWN_RE.sub("[chart rendered above]", cleaned)
+
+    raw_lines = cleaned.splitlines()
+    table_like = [_looks_like_plain_table_line(line.strip()) for line in raw_lines]
+    lines = []
+    for index, line in enumerate(raw_lines):
+        stripped = line.strip()
+        if _looks_like_markdown_table_line(stripped):
+            continue
+        if table_like[index] and (
+            (index > 0 and table_like[index - 1]) or
+            (index + 1 < len(table_like) and table_like[index + 1])
+        ):
+            continue
+        lines.append(line)
+
+    final = "\n".join(lines).strip()
+    final = re.sub(
+        r"(?i)^here is (?:a|the) (bar|line|donut|pie|scatter|horizontal bar)? ?chart[^:\n]*:\s*",
+        "The requested chart has been rendered.",
+        final,
+    )
+    if final.startswith("The requested chart has been rendered."):
+        final = final.replace("[chart rendered above]", "")
+    return final.strip()
+
+
+def _looks_like_markdown_table_line(line: str) -> bool:
+    if not line:
+        return False
+    if line.startswith("|") and line.endswith("|") and line.count("|") >= 2:
+        return True
+    if line.count("|") >= 2 and re.fullmatch(r"[:\-\|\s]+", line):
+        return True
+    return False
+
+
+def _looks_like_plain_table_line(line: str) -> bool:
+    if not line:
+        return False
+    if "\t" in line and len([part for part in line.split("\t") if part.strip()]) >= 2:
+        return True
+    # Catches simple two-column aligned output like "Customer Name    Client Sales (PKR)".
+    if re.search(r"\S\s{2,}\S", line) and not line.endswith((".", "!", "?")):
+        return True
+    return False
 
 # Disables Qwen3's <think>...</think> reasoning block if a Qwen3 model is specified.
 EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": False}} if "qwen3" in MODEL_NAME.lower() else None
@@ -154,7 +218,7 @@ def run_agent(session_id: str, user_message: str):
                 convo.append(session_id, {"role": "tool", "tool_call_id": tc.id, "content": result})
             continue
 
-        final_text = msg.content or ""
+        final_text = _sanitize_final_text(msg.content or "")
         convo.append(session_id, {"role": "assistant", "content": final_text})
         return final_text, trace, artifacts
 
@@ -204,7 +268,6 @@ async def run_agent_stream(session_id: str, user_message: str):
 
             if getattr(delta, "content", None):
                 content_buf += delta.content
-                yield {"type": "token", "text": delta.content}
 
             if getattr(delta, "tool_calls", None):
                 for tc_delta in delta.tool_calls:
@@ -242,7 +305,10 @@ async def run_agent_stream(session_id: str, user_message: str):
             continue  # loop again so the model sees the tool results
 
         # No tool calls in this turn -> it was the final answer
-        convo.append(session_id, {"role": "assistant", "content": content_buf})
+        final_text = _sanitize_final_text(content_buf)
+        if final_text:
+            yield {"type": "token", "text": final_text}
+        convo.append(session_id, {"role": "assistant", "content": final_text})
         yield {"type": "done"}
         return
 

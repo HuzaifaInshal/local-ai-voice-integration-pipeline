@@ -871,6 +871,7 @@
     }
 
     function renderMarkdown(text) {
+      text = stripUnsafeAssistantMarkup(text);
       const lines = String(text ?? "").split(/\r?\n/);
       const html = [];
       let paragraph = [];
@@ -916,6 +917,12 @@
 
       flushParagraph();
       return html.join("");
+    }
+
+    function stripUnsafeAssistantMarkup(text) {
+      return String(text ?? "")
+        .replace(/!\[[^\]]*\]\([^)]+\)/g, "[chart rendered above]")
+        .replace(/data:image\/[^;\s]+;base64,[A-Za-z0-9+/=\s]+/g, "[chart rendered above]");
     }
 
     function addMsg(role, text) {
