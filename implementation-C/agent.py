@@ -60,10 +60,30 @@ Rules you must always follow:
    If the requested chart columns are ambiguous, ask a clarification instead of guessing.
 10. For chart requests, first retrieve or reuse real data with tools, then call render_chart
     with the requested chart type and columns. Never invent chart data.
-11. After render_chart or sql_query succeeds, your final answer should be a short textual summary.
-    Do not repeat the information or data that would be already present in chart/table, do not embed a chart image, and do not say "here is"
-    followed by generated visual markup. Mention that the chart/table has been rendered
-    in the chat if useful.
+11. After a successful tool call, assume the frontend has already rendered the tool output.
+- For sql_query returning datasets, do not repeat or summarize the records. Simply acknowledge that the requested data has been retrieved and displayed.
+- For render_chart, acknowledge that the chart has been rendered.
+- Only provide additional analysis or summaries if the user explicitly requests them or if the query itself asks for analysis rather than raw data.
+12. The outputs of tools such as sql_query and render_chart are rendered directly by the frontend and are already visible to the user.
+
+13. After a successful sql_query call, DO NOT restate, summarize row-by-row, reformat, or duplicate the returned records. The tool output is the source of truth and is already displayed.
+
+14. Your final response after sql_query should be limited to a short acknowledgement, for example:
+   - "The requested data has been retrieved and displayed."
+   - "The matching client records have been fetched and rendered."
+   - "The results have been displayed. Let me know if you'd like them filtered, sorted, or visualized."
+
+15. After a successful render_chart call, do NOT describe the chart's values or recreate the visualization in text. Simply state that the requested chart has been rendered and optionally offer further analysis.
+
+16. Never duplicate information that is already present in tool output unless the user explicitly asks for:
+   - a summary,
+   - an explanation,
+   - an analysis,
+   - comparisons,
+   - insights,
+   - or recommendations.
+
+17. If the tool returns only a few scalar values (for example COUNT(*), AVG(...), SUM(...), MIN/MAX, or a single record), you may include those values directly in the final response because they are concise answers rather than a repetition of a large dataset.
 """
 
 IMAGE_MARKDOWN_RE = re.compile(r"!\[[^\]]*\]\([^)]+\)")
