@@ -37,10 +37,31 @@ import requests
 
 from db_setup import build_database
 
-# MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
-# MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-14B-Instruct-AWQ")
+# ---------------------------------------------------------------
+# POSSIBLE MODEL OPTIONS ON 2x TESLA T4 - KAGGLE NOTEBOOKS:
+
+# 1. Qwen/Qwen2.5-7B-Instruct;
+#       was good model as long as system prompt contains few things/rules
+#       after visualization tool was implemented and sql tool modified
+#       it started to hallucinate and ignore system prompt instructions
+#       especially the case where it was creating sql table data and base64 visualizations in responses
+
+# 2a. Qwen/Qwen2.5-14B-Instruct;
+#       OOM error could not be supported on 2x Tesla t4
+
+# 2b. Qwen/Qwen2.5-14B-Instruct-AWQ;
+#       same issue as that of 7b one however it was also returning responses in thai language for some reason
+
+# 3. Qwen/Qwen3-14B-AWQ (best option so far considering others);
+#       perfect model in terms of responses, does not hallucinate and keep system instructions in check
+#       however is slower than 2.5-7b
+
+# 4. Qwen/Qwen3-32B-AWQ;
+#       ofcourse high context window and more parameters support very well
+#       however is extremely slow at 1 or 2 tokens/sec
+# ---------------------------------------------------------------
+
 MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-14B-AWQ")
-# MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-32B-AWQ")
 VLLM_PORT = 8000
 APP_PORT = 8080
 MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "4096"))  # lowered from 8192: T4s only report ~14.56 GiB usable, KV cache needs the headroom
