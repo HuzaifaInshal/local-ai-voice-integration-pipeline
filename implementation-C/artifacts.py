@@ -13,42 +13,70 @@ from typing import Any
 
 
 MAX_TABLE_ROWS = 50
-MAX_CHART_ROWS = 25
+MAX_CHART_ROWS = 100
+CHART_TYPES = {"bar", "horizontal_bar", "line", "donut", "pie", "scatter"}
 
 DATE_COLUMN_RE = re.compile(r"(date|year|month|period|fy|financial_year)", re.IGNORECASE)
-NUMERIC_NAME_RE = re.compile(
-    r"(count|total|sum|avg|average|min|max|rating|sales|equity|amount|revenue|value|balance|clients?)",
-    re.IGNORECASE,
-)
-ID_NAME_RE = re.compile(r"(^id$|_id$|t24_id|crimsid)", re.IGNORECASE)
+SESSION_RESULTS: dict[str, dict[str, Any]] = {}
 
 
-def build_artifacts(tool_name: str, args: dict[str, Any], result_text: str) -> list[dict[str, Any]]:
+def reset_artifacts(session_id: str) -> None:
+    SESSION_RESULTS.pop(session_id, None)
+
+
+def build_artifacts(
+    tool_name: str,
+    args: dict[str, Any],
+    result_text: str,
+    session_id: str = "",
+) -> list[dict[str, Any]]:
     """Return zero or more UI artifacts for a completed tool call."""
     if tool_name == "get_schema":
         diagram = _build_schema_diagram(result_text)
         return [diagram] if diagram else []
+
+    if tool_name == "render_chart":
+        chart = _build_requested_chart(session_id, args)
+        return [chart] if chart else []
 
     rows = _extract_rows(result_text)
     if not rows:
         return []
 
     title = _title_for(tool_name, args)
+    columns = list(rows[0].keys())
+    if session_id:
+        SESSION_RESULTS[session_id] = {
+            "title": title,
+            "columns": columns,
+            "rows": rows,
+        }
+
     artifacts: list[dict[str, Any]] = [
         {
             "type": "table",
             "title": title,
-            "columns": list(rows[0].keys()),
+            "columns": columns,
             "rows": rows[:MAX_TABLE_ROWS],
             "row_count": len(rows),
         }
     ]
-
-    chart = _build_chart(title, rows)
-    if chart:
-        artifacts.append(chart)
-
     return artifacts
+
+
+def render_chart_result(session_id: str, args: dict[str, Any]) -> str:
+    """Validate a chart request against the latest real tabular result."""
+    chart = _build_requested_chart(session_id, args)
+    if not chart:
+        return json.dumps({
+            "error": "Chart could not be rendered. First run a data query, then request a supported chart with valid columns."
+        })
+    return json.dumps({
+        "result": "Chart rendered.",
+        "chart_type": chart["chart_type"],
+        "title": chart["title"],
+        "source_columns": chart["source_columns"],
+    })
 
 
 def _build_schema_diagram(result_text: str) -> dict[str, Any] | None:
@@ -136,74 +164,143 @@ def _title_from_query(query: str) -> str:
     return compact[:87].rstrip() + "..."
 
 
-def _build_chart(title: str, rows: list[dict[str, Any]]) -> dict[str, Any] | None:
-    if not rows or len(rows) > MAX_CHART_ROWS:
+def _build_requested_chart(session_id: str, args: dict[str, Any]) -> dict[str, Any] | None:
+    state = SESSION_RESULTS.get(session_id)
+    if not state:
         return None
 
-    columns = list(rows[0].keys())
-    numeric_columns = [c for c in columns if _is_numeric_column(c, rows)]
-    if not numeric_columns:
+    rows = state.get("rows") or []
+    columns = state.get("columns") or []
+    if not rows or not columns:
         return None
 
-    x_column = _choose_x_column(columns, numeric_columns, rows)
-    if not x_column:
+    chart_type = str(args.get("chart_type", "")).strip().lower()
+    if chart_type not in CHART_TYPES:
         return None
 
-    y_column = _choose_y_column(numeric_columns, x_column)
-    if not y_column:
+    title = str(args.get("title") or state.get("title") or "Chart")
+    chart_rows = rows[:MAX_CHART_ROWS]
+
+    if chart_type in {"donut", "pie"}:
+        label_col = _first_present(columns, args.get("label"), args.get("x"))
+        value_col = _first_present(columns, args.get("value"), args.get("y"))
+        if not label_col or not value_col or not _is_numeric_column(value_col, chart_rows):
+            return None
+        labels = []
+        values = []
+        for row in chart_rows:
+            value = _as_number(row.get(value_col))
+            if value is None:
+                continue
+            labels.append(str(row.get(label_col)))
+            values.append(value)
+        if len(values) < 2:
+            return None
+        return {
+            "type": "chart",
+            "chart_type": chart_type,
+            "title": title,
+            "labels": labels,
+            "datasets": [{"label": value_col, "data": values}],
+            "source_columns": {"label": label_col, "value": value_col},
+        }
+
+    if chart_type == "scatter":
+        x_col = _first_present(columns, args.get("x"))
+        y_col = _first_present(columns, args.get("y"))
+        label_col = _first_present(columns, args.get("label"))
+        if not x_col or not y_col or not _is_numeric_column(x_col, chart_rows) or not _is_numeric_column(y_col, chart_rows):
+            return None
+        points = []
+        for row in chart_rows:
+            x_value = _as_number(row.get(x_col))
+            y_value = _as_number(row.get(y_col))
+            if x_value is None or y_value is None:
+                continue
+            point = {"x": x_value, "y": y_value}
+            if label_col:
+                point["label"] = str(row.get(label_col))
+            points.append(point)
+        if len(points) < 2:
+            return None
+        return {
+            "type": "chart",
+            "chart_type": chart_type,
+            "title": title,
+            "datasets": [{"label": f"{y_col} by {x_col}", "data": points}],
+            "source_columns": {"x": x_col, "y": y_col, "label": label_col},
+        }
+
+    x_col = _first_present(columns, args.get("x"), args.get("label"))
+    y_col = _first_present(columns, args.get("y"), args.get("value"))
+    series_col = _first_present(columns, args.get("series"))
+    if not x_col or not y_col or not _is_numeric_column(y_col, chart_rows):
         return None
 
-    points = []
-    for row in rows[:MAX_CHART_ROWS]:
-        x_value = row.get(x_column)
-        y_value = _as_number(row.get(y_column))
-        if x_value is None or y_value is None:
-            continue
-        points.append({"x": str(x_value), "y": y_value})
+    if series_col:
+        labels = _unique_labels(row.get(x_col) for row in chart_rows)
+        series_values = _unique_labels(row.get(series_col) for row in chart_rows)
+        datasets = []
+        for series_value in series_values:
+            points_by_label = {}
+            for row in chart_rows:
+                if str(row.get(series_col)) != series_value:
+                    continue
+                value = _as_number(row.get(y_col))
+                if value is not None:
+                    points_by_label[str(row.get(x_col))] = value
+            datasets.append({
+                "label": series_value,
+                "data": [points_by_label.get(label) for label in labels],
+            })
+    else:
+        labels = []
+        values = []
+        for row in chart_rows:
+            value = _as_number(row.get(y_col))
+            if value is None:
+                continue
+            labels.append(str(row.get(x_col)))
+            values.append(value)
+        datasets = [{"label": y_col, "data": values}]
 
-    if len(points) < 2:
+    if not labels or not datasets or len(labels) < 2:
         return None
 
-    chart_type = "line" if DATE_COLUMN_RE.search(x_column) else "bar"
     return {
         "type": "chart",
         "chart_type": chart_type,
         "title": title,
-        "x": x_column,
-        "y": y_column,
-        "data": points,
+        "labels": labels,
+        "datasets": datasets,
+        "source_columns": {"x": x_col, "y": y_col, "series": series_col},
     }
 
 
-def _choose_x_column(columns: list[str], numeric_columns: list[str], rows: list[dict[str, Any]]) -> str | None:
-    non_numeric = [c for c in columns if c not in numeric_columns]
-    dated = [c for c in non_numeric if DATE_COLUMN_RE.search(c)]
-    if dated:
-        return dated[0]
-    if non_numeric:
-        return non_numeric[0]
-
-    # If every column is numeric, use the first ID-like or sequence-like column
-    # as x and another numeric column as y.
-    candidates = [c for c in columns if not ID_NAME_RE.search(c)]
-    if len(candidates) >= 2:
-        return candidates[0]
-    if len(columns) >= 2:
-        return columns[0]
+def _first_present(columns: list[str], *candidates: Any) -> str | None:
+    normalized = {column.lower(): column for column in columns}
+    for candidate in candidates:
+        if not candidate:
+            continue
+        exact = str(candidate).strip()
+        if exact in columns:
+            return exact
+        lowered = exact.lower()
+        if lowered in normalized:
+            return normalized[lowered]
     return None
 
 
-def _choose_y_column(numeric_columns: list[str], x_column: str) -> str | None:
-    choices = [c for c in numeric_columns if c != x_column]
-    if not choices:
-        choices = numeric_columns
-    preferred = [c for c in choices if NUMERIC_NAME_RE.search(c) and not ID_NAME_RE.search(c)]
-    if preferred:
-        return preferred[0]
-    non_id = [c for c in choices if not ID_NAME_RE.search(c)]
-    if non_id:
-        return non_id[0]
-    return choices[0] if choices else None
+def _unique_labels(values) -> list[str]:
+    seen = set()
+    labels = []
+    for value in values:
+        label = str(value)
+        if label in seen:
+            continue
+        seen.add(label)
+        labels.append(label)
+    return labels
 
 
 def _is_numeric_column(column: str, rows: list[dict[str, Any]]) -> bool:

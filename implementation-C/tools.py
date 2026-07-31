@@ -143,6 +143,37 @@ def get_current_datetime() -> str:
     return json.dumps({"now": datetime.now().isoformat()})
 
 
+def render_chart(
+    chart_type: str,
+    title: str,
+    x: str = "",
+    y: str = "",
+    label: str = "",
+    value: str = "",
+    series: str = "",
+) -> str:
+    """Render a chart from the most recent real tabular tool result. Use this
+    only when the user explicitly asks for a chart, graph, plot, pie, donut,
+    line, bar, or scatter visualization. Do not call this before retrieving
+    data with sql_query, lookup_client, or get_client_orr. The requested columns
+    must exist in the latest result.
+
+    Supported chart_type values: bar, horizontal_bar, line, donut, pie, scatter.
+    For bar/horizontal_bar/line use x and y. For donut/pie use label and value.
+    For scatter use x and y, with optional label."""
+    return json.dumps({
+        "chart_request": {
+            "chart_type": chart_type,
+            "title": title,
+            "x": x,
+            "y": y,
+            "label": label,
+            "value": value,
+            "series": series,
+        }
+    })
+
+
 TOOL_DISPATCH = {
     "sql_query":          sql_query,
     "get_schema":         get_schema,
@@ -150,6 +181,7 @@ TOOL_DISPATCH = {
     "lookup_client":      lookup_client,
     "get_client_orr":     get_client_orr,
     "calculator":         calculator,
+    "render_chart":       render_chart,
     "get_current_datetime": get_current_datetime,
 }
 
@@ -239,6 +271,30 @@ TOOL_SCHEMAS = [
             "name": "get_current_datetime",
             "description": get_current_datetime.__doc__.strip(),
             "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "render_chart",
+            "description": render_chart.__doc__.strip(),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "chart_type": {
+                        "type": "string",
+                        "enum": ["bar", "horizontal_bar", "line", "donut", "pie", "scatter"],
+                        "description": "The visualization type explicitly requested by the user."
+                    },
+                    "title": {"type": "string", "description": "Short chart title."},
+                    "x": {"type": "string", "description": "X-axis column for bar, horizontal_bar, line, or scatter."},
+                    "y": {"type": "string", "description": "Numeric Y-axis column for bar, horizontal_bar, line, or scatter."},
+                    "label": {"type": "string", "description": "Label/category column for donut/pie, or point labels for scatter."},
+                    "value": {"type": "string", "description": "Numeric value column for donut/pie."},
+                    "series": {"type": "string", "description": "Optional grouping column for multi-series bar/line charts."}
+                },
+                "required": ["chart_type", "title"],
+            },
         },
     },
 ]

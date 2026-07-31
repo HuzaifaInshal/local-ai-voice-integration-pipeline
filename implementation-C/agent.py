@@ -20,7 +20,7 @@ import json
 import os
 from openai import OpenAI, AsyncOpenAI
 
-from artifacts import build_artifacts
+from artifacts import build_artifacts, render_chart_result, reset_artifacts
 from tools import TOOL_DISPATCH, TOOL_SCHEMAS
 
 VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
@@ -51,6 +51,12 @@ Rules you must always follow:
 6. Format monetary values (client_sales, client_equity) in readable PKR format when presenting to users.
 7. You may use normal markdown such as **bold** and small markdown tables in final answers.
    Prefer concise summaries because the UI can render full tool results separately as tables/charts.
+8. Only call render_chart when the user explicitly asks for a chart, graph, plot,
+   visualization, pie, donut, line, bar, scatter, or asks to show prior results as a chart.
+9. When calling render_chart, use only columns that exist in the latest real tool result.
+   If the requested chart columns are ambiguous, ask a clarification instead of guessing.
+10. For chart requests, first retrieve or reuse real data with tools, then call render_chart
+    with the requested chart type and columns. Never invent chart data.
 """
 
 # Disables Qwen3's <think>...</think> reasoning block if a Qwen3 model is specified.
@@ -87,12 +93,16 @@ class ConversationManager:
 
     def reset(self, session_id: str):
         self.sessions[session_id] = [{"role": "system", "content": SYSTEM_PROMPT}]
+        reset_artifacts(session_id)
 
 
 convo = ConversationManager()
 
 
-def _run_tool(name: str, args: dict) -> str:
+def _run_tool(name: str, args: dict, session_id: str) -> str:
+    if name == "render_chart":
+        return render_chart_result(session_id, args)
+
     fn = TOOL_DISPATCH.get(name)
     if fn is None:
         return json.dumps({"error": f"Unknown tool '{name}'"})
@@ -138,9 +148,9 @@ def run_agent(session_id: str, user_message: str):
                     args = json.loads(tc.function.arguments or "{}")
                 except json.JSONDecodeError:
                     args = {}
-                result = _run_tool(tc.function.name, args)
+                result = _run_tool(tc.function.name, args, session_id)
                 trace.append({"tool": tc.function.name, "args": args, "result": result})
-                artifacts.extend(build_artifacts(tc.function.name, args, result))
+                artifacts.extend(build_artifacts(tc.function.name, args, result, session_id))
                 convo.append(session_id, {"role": "tool", "tool_call_id": tc.id, "content": result})
             continue
 
@@ -159,7 +169,7 @@ async def run_agent_stream(session_id: str, user_message: str):
     """Async generator yielding dicts:
       {"type": "tool", "tool": ..., "args": ..., "result": ...}
       {"type": "table", "title": ..., "columns": [...], "rows": [...]}
-      {"type": "chart", "chart_type": "bar|line", "data": [...]}
+      {"type": "chart", "chart_type": "bar|horizontal_bar|line|donut|pie|scatter", ...}
       {"type": "diagram", "nodes": [...], "edges": [...]}
       {"type": "token", "text": ...}
       {"type": "done"}
@@ -224,9 +234,9 @@ async def run_agent_stream(session_id: str, user_message: str):
                     args = json.loads(tc["arguments"] or "{}")
                 except json.JSONDecodeError:
                     args = {}
-                result = _run_tool(tc["name"], args)
+                result = _run_tool(tc["name"], args, session_id)
                 yield {"type": "tool", "tool": tc["name"], "args": args, "result": result}
-                for artifact in build_artifacts(tc["name"], args, result):
+                for artifact in build_artifacts(tc["name"], args, result, session_id):
                     yield artifact
                 convo.append(session_id, {"role": "tool", "tool_call_id": tc["id"], "content": result})
             continue  # loop again so the model sees the tool results
