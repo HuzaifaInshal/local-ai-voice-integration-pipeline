@@ -281,6 +281,7 @@ async def run_agent_stream(session_id: str, user_message: str):
 
             if getattr(delta, "content", None):
                 content_buf += delta.content
+                yield {"type": "token", "text": delta.content}
 
             if getattr(delta, "tool_calls", None):
                 for tc_delta in delta.tool_calls:
