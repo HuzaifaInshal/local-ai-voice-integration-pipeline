@@ -38,8 +38,8 @@ import requests
 from db_setup import build_database
 
 # MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-14B-Instruct-AWQ")
-# MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-14B-AWQ")  # Note: unquantized 14B FP16 will OOM on 2x T4 GPUs
+# MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-14B-Instruct-AWQ")
+MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-14B-AWQ")
 # MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-32B-AWQ")
 VLLM_PORT = 8000
 APP_PORT = 8080
