@@ -20,12 +20,12 @@ import json
 import os
 import re
 from openai import OpenAI, AsyncOpenAI
+from main import MODEL_NAME
 
 from artifacts import build_artifacts, render_chart_result, reset_artifacts
 from tools import TOOL_DISPATCH, TOOL_SCHEMAS
 
 VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
 MAX_ITERATIONS = 6
 MAX_HISTORY_MESSAGES = 16  # rolling window, excludes system prompt
 
