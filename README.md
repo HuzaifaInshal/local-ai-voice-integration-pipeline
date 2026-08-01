@@ -1,58 +1,82 @@
-# 🎙️ AI Voice Studio
+# ReAct Agent POC — Kaggle 2x T4
 
-An enterprise-grade, privacy-first, on-premise local AI voice integration studio and pipeline. This repository houses specialized implementations for hands-free voice command processing, local Speech-to-Text (STT), ReAct reasoning over database systems, real-time WebAudio visualizers, and interactive dashboard output generation.
+Self-hosted ReAct loop with native tool calling, a SQL tool backed by a
+real SQLite database, session history management, and a browser UI —
+all reachable via ngrok while the Kaggle session is running.
 
----
+## Files
 
-## 📁 Repository Implementations
+- `db_setup.py` — builds `company.db` (customers/products/orders sample data)
+- `tools.py` — the 6 tools + their OpenAI-format schemas (edit this to swap in your client's real 7 tools)
+- `agent.py` — the ReAct loop itself (native tool calling, history window)
+- `server.py` — FastAPI app: `/api/chat`, `/api/reset`, serves the UI
+- `static/index.html` — chat UI with a collapsible tool-call trace per message
+- `main.py` — orchestrator: starts vLLM, waits for health, opens ngrok, runs the app
 
-```text
-ai-voice-studio/
-├── implementation-A/             # 🦜 Parakeet Voice Assistant (Complete Audio & Dashboard Stack)
-│   ├── app/                      # FastAPI Backend & ReAct LangGraph Engine
-│   ├── client/                   # Glassmorphic UI Dashboard & Music Visualizer
-│   ├── data/                     # SQLite Database & Seeding Scripts
-│   ├── deploy_kaggle.py          # Kaggle T4 GPU Deployment Launcher
-│   └── README.md                 # Implementation-A Dedicated Guide
-├── implementation-B/             # ⚡ Alfa Voice Assistant (Google Assistant UI & Token Streaming)
-│   ├── app/                      # FastAPI Backend & First-Token Streaming Engine
-│   ├── client/                   # Ultra-Minimal Google Assistant UI & 4-Bar Visualizer
-│   ├── data/                     # SQLite Database & Seeding Scripts
-│   ├── deploy_kaggle.py          # Kaggle T4 GPU Deployment Launcher
-│   └── README.md                 # Implementation-B Dedicated Guide
-└── README.md                     # Project Root Documentation
-```
+## Kaggle setup
 
----
+1. **Enable GPU**: Notebook settings → Accelerator → GPU T4 x2.
+2. **Add your ngrok token**: Notebook editor → Add-ons → Secrets → add secret named `NGROK_TOKEN` with your ngrok authtoken.
+3. **Upload these files** as a Kaggle dataset (or paste into `/kaggle/working/` via a cell) so they sit together in one working directory.
+4. In a cell:
+   ```
+   !pip install -r requirements.txt
+   ```
+5. In the next cell:
+   ```
+   !python main.py
+   ```
+6. Wait for the log line `[main] Public URL: https://....ngrok-free.app` — open that in your browser.
 
-## 🚀 Available Implementations
+## What to test first
 
-### ⚡ Implementation B: Alfa AI Voice Assistant (Minimal Google Assistant UI & Token Streaming)
+- `what tables are available?` — should call `list_tables`, not guess.
+- `what's the status of order 7?` — should call `lookup_order_status` or `sql_query`, and the final answer's order id/status should match the raw tool output shown in the trace panel.
+- `total revenue from delivered orders` — needs `get_schema` + `sql_query` combined, a good multi-step test.
+- Ask a question needing data, then immediately ask a *follow-up* referencing "that" — tests whether history/context carries over correctly.
 
-[👉 Read Full Implementation-B Documentation](./implementation-B/README.md)
+Click any "tool call: ..." row under a bot reply to see the exact raw
+tool output the model received — this is your fastest way to tell
+"model hallucinated" apart from "model answered correctly but you
+doubted it."
 
-An ultra-minimal Google Assistant style voice assistant with `"Hey Alfa"` wake-word activation, live real-time speech transcription display, 4-bar Google Assistant capsule audio visualizer, **first-token real-time streaming**, ReAct SQL tool execution, **zero speech synthesis / no talking back**, and dynamic Chart.js reporting.
+## Fixed: OOM during guided-decoding warmup on T4
 
-#### Quick Run Command:
+If you saw a `CUDA out of memory` error that hit right after "Capturing
+CUDA graphs" and during a `warmup_kernels`/`grammar_output` step, that's
+CUDA graph capture (~2.3 GiB/GPU) leaving almost no room for the tool-call
+grammar warmup. `main.py` now passes `--enforce-eager` to skip graph
+capture entirely, and `MAX_MODEL_LEN` defaults to 4096 for extra margin.
+This trades a little decode latency for the memory back — fine for a POC.
+
+## If Qwen3-32B-AWQ doesn't fit or errors out on your 2x T4
+
+Turing GPUs (T4) don't support the fast `awq_marlin` kernel or
+FlashAttention-2, which `main.py` already accounts for (`--quantization
+awq`, `VLLM_ATTENTION_BACKEND=XFORMERS`). If you still hit an OOM or a
+kernel-compatibility error, drop to a smaller model — no code changes
+needed elsewhere:
+
 ```bash
-cd implementation-B
-python3 -m venv .virtual-environment
-source .virtual-environment/bin/activate
-pip install -r requirements.txt
-python3 data/seed_db.py
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+MODEL_NAME=Qwen/Qwen3-14B-AWQ python main.py
 ```
 
----
+or edit `MAX_MODEL_LEN` down (e.g. to 4096) if you need more KV-cache headroom.
 
-### 🦜 Implementation A: Parakeet AI Voice Assistant
+## Why this shouldn't hallucinate the way your Qwen2.5 setup did
 
-[👉 Read Full Implementation-A Documentation](./implementation-A/README.md)
+1. **Native tool calling**, not prompted Thought/Action/Observation text —
+   the model literally cannot free-text a fake "Observation," because
+   tool results only ever enter its context as a separate `role: "tool"`
+   message that your code inserts after the real function runs.
+2. The system prompt explicitly forbids fabricating data and instructs
+   the model to call `get_schema` instead of guessing column names.
+3. Every tool call and its raw result is visible in the UI trace panel,
+   so you can immediately tell if a hallucination is a model problem
+   or a prompt/tool-description problem.
 
-An end-to-end hands-free banking voice assistant with `"Parakeet"` wake-word, GPU-accelerated ReAct reasoning (`Qwen2.5-1.5B`), STT (`faster-whisper`), 60fps glassmorphic audio visualizer, text-to-speech engine, and dynamic Chart.js visualizations.
+## Known Kaggle limits to plan around
 
----
-
-## 🔒 Security & Privacy
-
-All voice processing, Speech-to-Text transcription, and LLM analytical reasoning are designed to run **100% locally** or within private on-premise CUDA VRAM environments without transmitting sensitive data to third-party APIs.
+- ~30 GPU hrs/week quota, 9-hour max session — fine for demoing, not for an always-on service.
+- Session state doesn't persist after the notebook stops — this is a POC environment, not a deployment target.
+- If the client approves the POC, the next step is moving this same code (vLLM + FastAPI are portable) onto a small rented GPU box (e.g. RunPod/Vast.ai) or their own on-prem hardware for compliance.
