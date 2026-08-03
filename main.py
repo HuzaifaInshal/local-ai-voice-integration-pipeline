@@ -118,7 +118,14 @@ def wait_for_vllm(timeout_s=1800):
         try:
             r = requests.get(VLLM_HEALTH_URL, timeout=3)
             if r.status_code == 200:
-                print("[main] vLLM is healthy.")
+                print("[main] vLLM is healthy. Running Triton kernel warmup request...")
+                try:
+                    warmup_url = f"http://localhost:{VLLM_PORT}/v1/chat/completions"
+                    payload = {"model": MODEL_NAME, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 5}
+                    requests.post(warmup_url, json=payload, timeout=45)
+                    print("[main] vLLM Triton kernel warmup complete.")
+                except Exception as e:
+                    print(f"[main] Warmup warning: {e}")
                 return True
         except requests.exceptions.RequestException:
             pass

@@ -141,6 +141,9 @@ class ConversationManager:
 convo = ConversationManager()
 
 
+import time
+
+
 def _run_tool(name: str, args: dict, session_id: str) -> str:
     if name == "render_chart":
         return render_chart_result(session_id, args)
@@ -183,16 +186,21 @@ def run_agent(session_id: str, user_message: str):
         msg = response.choices[0].message
 
         if msg.tool_calls:
+            formatted_calls = []
+            for i, tc in enumerate(msg.tool_calls):
+                call_id = tc.id if tc.id else f"call_{i}_{int(time.time()*1000)}"
+                formatted_calls.append({
+                    "id": call_id,
+                    "type": "function",
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments}
+                })
             convo.append(session_id, {
                 "role": "assistant",
                 "content": msg.content or "",
-                "tool_calls": [
-                    {"id": tc.id, "type": "function",
-                     "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-                    for tc in msg.tool_calls
-                ],
+                "tool_calls": formatted_calls,
             })
-            for tc in msg.tool_calls:
+            for i, tc in enumerate(msg.tool_calls):
+                call_id = formatted_calls[i]["id"]
                 try:
                     args = json.loads(tc.function.arguments or "{}")
                 except json.JSONDecodeError:
@@ -200,7 +208,7 @@ def run_agent(session_id: str, user_message: str):
                 result = _run_tool(tc.function.name, args, session_id)
                 trace.append({"tool": tc.function.name, "args": args, "result": result})
                 artifacts.extend(build_artifacts(tc.function.name, args, result, session_id))
-                convo.append(session_id, {"role": "tool", "tool_call_id": tc.id, "content": result})
+                convo.append(session_id, {"role": "tool", "tool_call_id": call_id, "content": result})
             continue
 
         final_text = msg.content or ""
@@ -269,7 +277,6 @@ async def run_agent_stream(session_id: str, user_message: str):
 
                 if "<think>" in text_piece:
                     in_think_block = True
-                    # Split around <think>
                     parts = text_piece.split("<think>", 1)
                     if parts[0]:
                         yield {"type": "token", "text": parts[0]}
@@ -285,7 +292,7 @@ async def run_agent_stream(session_id: str, user_message: str):
                 elif in_think_block:
                     yield {"type": "reasoning", "text": text_piece}
                 else:
-                    if not reasoning:  # avoid duplicating if reasoning was sent via reasoning_content
+                    if not reasoning:
                         yield {"type": "token", "text": text_piece}
 
             if getattr(delta, "tool_calls", None):
@@ -302,6 +309,10 @@ async def run_agent_stream(session_id: str, user_message: str):
 
         if tool_calls_acc:
             ordered = [tool_calls_acc[i] for i in sorted(tool_calls_acc)]
+            for i, tc in enumerate(ordered):
+                if not tc["id"]:
+                    tc["id"] = f"call_{i}_{int(time.time()*1000)}"
+
             convo.append(session_id, {
                 "role": "assistant",
                 "content": content_buf,
