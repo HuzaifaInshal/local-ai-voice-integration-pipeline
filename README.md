@@ -20,13 +20,9 @@ all reachable via ngrok while the Kaggle session is running.
 3. **Upload these files** as a Kaggle dataset (or paste into `/kaggle/working/` via a cell) so they sit together in one working directory.
 4. In a cell:
    ```
-   !pip install -r requirements.txt
+   !rm -rf local-ai-voice-integration-pipeline && git clone https://github.com/HuzaifaInshal/local-ai-voice-integration-pipeline.git && pip install -r local-ai-voice-integration-pipeline/requirements.txt && python local-ai-voice-integration-pipeline/main.py
    ```
-5. In the next cell:
-   ```
-   !python main.py
-   ```
-6. Wait for the log line `[main] Public URL: https://....ngrok-free.app` — open that in your browser.
+5. Wait for the log line `[main] Public URL: https://....ngrok-free.app` — open that in your browser.
 
 ## What to test first
 
