@@ -52,13 +52,15 @@ Rules:
 
 6. Do not create your own markdown tables, ASCII tables, HTML tables, Mermaid diagrams, SVG charts, images, or any self-rendered visualization. The frontend automatically renders outputs returned by tools.
 
-7. Only call render_chart when the user explicitly requests a chart, graph, plot, visualization, pie chart, donut chart, bar chart, line chart, scatter plot, or asks to visualize previously retrieved data. When calling render_chart, only use columns that exist in the latest sql_query result. If the requested chart is ambiguous, ask for clarification.
+7. Visualizations:
+   - Call `render_chart` when the user explicitly requests a single chart, graph, plot, pie chart, donut chart, bar chart, line chart, or scatter plot.
+   - Call `render_dashboard` when the user explicitly requests a dashboard, multi-chart response, portfolio summary, executive analytics report, risk distribution dashboard, or multi-angle visualizations.
+   - For multi-chart dashboards, execute all required SQL queries first so all datasets are retrieved, then call `render_dashboard` specifying title, key metric KPI cards (2-4 cards with label, value, subtext, trend), and list of chart specs. Use `dataset_index` (0, 1, 2...) in chart specs if drawing from different query results in the conversation turn.
 
-8. The outputs of sql_query and render_chart are automatically rendered by the frontend and are already visible to the user.
+8. The outputs of sql_query, render_chart, and render_dashboard are automatically rendered by the frontend and are already visible to the user.
    - If sql_query returns a dataset (multiple rows), do not repeat, summarize, reformat, or list the returned records. Simply acknowledge that the requested data has been retrieved and displayed.
-   - If render_chart is used, acknowledge that the requested visualization has been rendered.
-   - Only summarize, analyze, compare, explain, or provide insights when the user explicitly asks for them.
-   - If a tool returns a single scalar value (such as COUNT, SUM, AVG, MIN, MAX) or a single record, you may include those values directly in your final response because they are concise answers rather than duplication of a dataset.
+   - If render_chart or render_dashboard is used, acknowledge that the requested visualization/dashboard has been rendered.
+   - Only summarize, analyze, compare, explain, or provide insights when the user explicitly asks for deep analytics or executive reasoning.
 
 9. Before deciding how to respond, determine the user's intent:
 
@@ -70,50 +72,13 @@ Rules:
       Examples: count, total, average, minimum, maximum
       → Execute sql_query and return the resulting value(s).
 
-    • Analysis
-      Examples: summarize, explain, compare, identify trends, recommend, provide insights
-      → Execute sql_query if needed, then analyze the real tool results. Do not fabricate observations.
-
-    • Visualization
-      Examples: chart, graph, plot, pie, donut, bar, line, scatter
-      → Execute sql_query if needed, call render_chart, then acknowledge that the visualization has been rendered. Do not recreate or describe the chart unless the user explicitly asks for analysis.
+    • Deep Analytics / Dashboard
+      Examples: dashboard, portfolio analysis, risk breakdown, deep analytics, multi-chart, executive report
+      → Execute targeted SQL queries, call render_dashboard with KPIs and chart specs, then provide structured executive commentary and risk observations.
 """
 
 IMAGE_MARKDOWN_RE = re.compile(r"!\[[^\]]*\]\([^)]+\)")
 DATA_IMAGE_RE = re.compile(r"data:image/[^;\s]+;base64,[A-Za-z0-9+/=\s]+")
-
-
-# def _sanitize_fin_sanitize_final_textal_text(text: str) -> str:
-#     """Keep final assistant text from duplicating UI-rendered artifacts."""
-#     if not text:
-#         return ""
-
-#     cleaned = DATA_IMAGE_RE.sub("[chart rendered above]", text)
-#     cleaned = IMAGE_MARKDOWN_RE.sub("[chart rendered above]", cleaned)
-
-#     raw_lines = cleaned.splitlines()
-#     table_like = [_looks_like_plain_table_line(line.strip()) for line in raw_lines]
-#     lines = []
-#     for index, line in enumerate(raw_lines):
-#         stripped = line.strip()
-#         if _looks_like_markdown_table_line(stripped):
-#             continue
-#         if table_like[index] and (
-#             (index > 0 and table_like[index - 1]) or
-#             (index + 1 < len(table_like) and table_like[index + 1])
-#         ):
-#             continue
-#         lines.append(line)
-
-#     final = "\n".join(lines).strip()
-#     final = re.sub(
-#         r"(?i)^here is (?:a|the) (bar|line|donut|pie|scatter|horizontal bar)? ?chart[^:\n]*:\s*",
-#         "The requested chart has been rendered.",
-#         final,
-#     )
-#     if final.startswith("The requested chart has been rendered."):
-#         final = final.replace("[chart rendered above]", "")
-#     return final.strip()
 
 
 def _looks_like_markdown_table_line(line: str) -> bool:
@@ -136,8 +101,8 @@ def _looks_like_plain_table_line(line: str) -> bool:
         return True
     return False
 
-# Disables Qwen3's <think>...</think> reasoning block if a Qwen3 model is specified.
-EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": False}} if "qwen3" in MODEL_NAME.lower() else None
+# Enables Qwen3's native <think>...</think> deep reasoning if a Qwen3 model is specified.
+EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": True}} if "qwen3" in MODEL_NAME.lower() else None
 
 client = OpenAI(base_url=VLLM_BASE_URL, api_key="EMPTY")
 async_client = AsyncOpenAI(base_url=VLLM_BASE_URL, api_key="EMPTY")
@@ -179,6 +144,13 @@ convo = ConversationManager()
 def _run_tool(name: str, args: dict, session_id: str) -> str:
     if name == "render_chart":
         return render_chart_result(session_id, args)
+    if name == "render_dashboard":
+        return json.dumps({
+            "result": "Dashboard rendered.",
+            "title": args.get("title", "Dashboard"),
+            "kpis_count": len(args.get("kpis") or []),
+            "charts_count": len(args.get("charts") or []),
+        })
 
     fn = TOOL_DISPATCH.get(name)
     if fn is None:
@@ -247,7 +219,9 @@ async def run_agent_stream(session_id: str, user_message: str):
       {"type": "tool", "tool": ..., "args": ..., "result": ...}
       {"type": "table", "title": ..., "columns": [...], "rows": [...]}
       {"type": "chart", "chart_type": "bar|horizontal_bar|line|donut|pie|scatter", ...}
+      {"type": "dashboard", "title": ..., "kpis": [...], "charts": [...]}
       {"type": "diagram", "nodes": [...], "edges": [...]}
+      {"type": "reasoning", "text": ...}
       {"type": "token", "text": ...}
       {"type": "done"}
       {"type": "error", "message": ...}
@@ -273,15 +247,46 @@ async def run_agent_stream(session_id: str, user_message: str):
 
         content_buf = ""
         tool_calls_acc = {}  # index -> {"id":..., "name":..., "arguments":...}
+        in_think_block = False
 
         async for chunk in stream:
             if not chunk.choices:
                 continue
             delta = chunk.choices[0].delta
 
+            # 1. Direct reasoning_content field (from vLLM reasoning parser)
+            reasoning = getattr(delta, "reasoning_content", None)
+            if not reasoning and hasattr(delta, "model_extra") and delta.model_extra:
+                reasoning = delta.model_extra.get("reasoning_content")
+
+            if reasoning:
+                yield {"type": "reasoning", "text": reasoning}
+
+            # 2. Inline <think>...</think> tags inside content buffer
             if getattr(delta, "content", None):
-                content_buf += delta.content
-                yield {"type": "token", "text": delta.content}
+                text_piece = delta.content
+                content_buf += text_piece
+
+                if "<think>" in text_piece:
+                    in_think_block = True
+                    # Split around <think>
+                    parts = text_piece.split("<think>", 1)
+                    if parts[0]:
+                        yield {"type": "token", "text": parts[0]}
+                    if parts[1]:
+                        yield {"type": "reasoning", "text": parts[1]}
+                elif "</think>" in text_piece:
+                    in_think_block = False
+                    parts = text_piece.split("</think>", 1)
+                    if parts[0]:
+                        yield {"type": "reasoning", "text": parts[0]}
+                    if parts[1]:
+                        yield {"type": "token", "text": parts[1]}
+                elif in_think_block:
+                    yield {"type": "reasoning", "text": text_piece}
+                else:
+                    if not reasoning:  # avoid duplicating if reasoning was sent via reasoning_content
+                        yield {"type": "token", "text": text_piece}
 
             if getattr(delta, "tool_calls", None):
                 for tc_delta in delta.tool_calls:

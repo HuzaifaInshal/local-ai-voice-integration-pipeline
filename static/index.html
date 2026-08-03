@@ -652,6 +652,162 @@
       color: #14532d;
     }
 
+    /* Qwen3 Deep Reasoning Box */
+    .reasoning-box {
+      align-self: flex-start;
+      max-width: 96%;
+      width: min(740px, 96%);
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid #8b5cf6;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 13px;
+      margin-bottom: 8px;
+      animation: msgPop 0.3s ease forwards;
+    }
+
+    .reasoning-box summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #6d28d9;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      user-select: none;
+    }
+
+    .reasoning-box pre {
+      margin-top: 10px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #334155;
+      background: #ffffff;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #f1f5f9;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    /* Executive Multi-Chart Dashboard Container */
+    .dashboard-artifact {
+      align-self: flex-start;
+      max-width: 98%;
+      width: min(780px, 98%);
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+      animation: msgPop 0.3s ease forwards;
+      margin: 12px 0;
+    }
+
+    .dashboard-header {
+      margin-bottom: 16px;
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 12px;
+    }
+
+    .dashboard-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dashboard-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* KPI Summary Cards Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .kpi-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .kpi-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 4px 0;
+    }
+
+    .kpi-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+    }
+
+    .kpi-subtext {
+      color: #64748b;
+    }
+
+    .kpi-trend {
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .kpi-trend.up { background: #dcfce7; color: #15803d; }
+    .kpi-trend.down { background: #fee2e2; color: #b91c1c; }
+    .kpi-trend.neutral { background: #f1f5f9; color: #475569; }
+
+    /* Multi-Chart Layout Grid */
+    .dashboard-charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .dashboard-chart-card {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    }
+
+    .dashboard-chart-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 10px;
+    }
+
     /* Bottom Voice & Input Bar */
     #inputBar {
       padding: 16px 24px 20px;
@@ -1442,6 +1598,123 @@
       }
     }
 
+    let activeReasoningBox = null;
+    let activeReasoningPre = null;
+
+    function appendReasoningToken(text) {
+      if (!activeReasoningBox) {
+        const details = document.createElement("details");
+        details.className = "reasoning-box";
+        details.open = true;
+
+        const summary = document.createElement("summary");
+        summary.innerHTML = "<span>🧠</span> Qwen3 Deep Analytics & Reasoning Process";
+        details.appendChild(summary);
+
+        const pre = document.createElement("pre");
+        details.appendChild(pre);
+        activeReasoningPre = pre;
+        activeReasoningBox = details;
+
+        chatContainer.appendChild(details);
+      }
+      activeReasoningPre.textContent += text;
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function addDashboardArtifact(event) {
+      const wrap = document.createElement("div");
+      wrap.className = "dashboard-artifact";
+
+      // Header
+      const head = document.createElement("div");
+      head.className = "dashboard-header";
+
+      const title = document.createElement("div");
+      title.className = "dashboard-title";
+      title.innerHTML = `<span>📊</span> ${escapeHtml(event.title || "Executive Analytics Dashboard")}`;
+      head.appendChild(title);
+
+      if (event.subtitle) {
+        const sub = document.createElement("div");
+        sub.className = "dashboard-subtitle";
+        sub.textContent = event.subtitle;
+        head.appendChild(sub);
+      }
+      wrap.appendChild(head);
+
+      // KPI Metric Cards Grid
+      if (event.kpis && event.kpis.length) {
+        const kpiGrid = document.createElement("div");
+        kpiGrid.className = "kpi-grid";
+
+        event.kpis.forEach(kpi => {
+          const card = document.createElement("div");
+          card.className = "kpi-card";
+
+          const label = document.createElement("div");
+          label.className = "kpi-label";
+          label.textContent = kpi.label || "";
+          card.appendChild(label);
+
+          const value = document.createElement("div");
+          value.className = "kpi-value";
+          value.textContent = kpi.value || "";
+          card.appendChild(value);
+
+          if (kpi.subtext || kpi.trend) {
+            const footer = document.createElement("div");
+            footer.className = "kpi-footer";
+
+            const sub = document.createElement("span");
+            sub.className = "kpi-subtext";
+            sub.textContent = kpi.subtext || "";
+            footer.appendChild(sub);
+
+            if (kpi.trend) {
+              const trend = document.createElement("span");
+              trend.className = `kpi-trend ${kpi.trend}`;
+              trend.textContent = kpi.trend === "up" ? "▲" : kpi.trend === "down" ? "▼" : "•";
+              footer.appendChild(trend);
+            }
+            card.appendChild(footer);
+          }
+          kpiGrid.appendChild(card);
+        });
+        wrap.appendChild(kpiGrid);
+      }
+
+      // Multi-Chart Grid
+      if (event.charts && event.charts.length) {
+        const chartsGrid = document.createElement("div");
+        chartsGrid.className = "dashboard-charts-grid";
+
+        event.charts.forEach(chartSpec => {
+          const card = document.createElement("div");
+          card.className = "dashboard-chart-card";
+
+          const cTitle = document.createElement("div");
+          cTitle.className = "dashboard-chart-title";
+          cTitle.textContent = chartSpec.title || "Chart";
+          card.appendChild(cTitle);
+
+          const canvas = document.createElement("canvas");
+          canvas.className = "chart-canvas";
+          canvas.width = 340;
+          canvas.height = 220;
+          card.appendChild(canvas);
+
+          chartsGrid.appendChild(card);
+          // Render chart onto canvas
+          setTimeout(() => drawChart(canvas, chartSpec), 10);
+        });
+        wrap.appendChild(chartsGrid);
+      }
+
+      chatContainer.appendChild(wrap);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
     // Main Function to submit user message to server & update UI
     async function sendQuery(text) {
       const trimmed = text.trim();
@@ -1453,6 +1726,9 @@
       addMsg("user", trimmed);
       input.value = "";
       sendBtn.disabled = true;
+
+      activeReasoningBox = null;
+      activeReasoningPre = null;
 
       const typingEl = addTypingIndicator();
       let botBubble = null;
@@ -1488,12 +1764,18 @@
             if (event.type === "tool") {
               if (typingEl.parentNode) typingEl.remove();
               addTrace(event);
+            } else if (event.type === "reasoning") {
+              if (typingEl.parentNode) typingEl.remove();
+              appendReasoningToken(event.text);
             } else if (event.type === "table") {
               if (typingEl.parentNode) typingEl.remove();
               addTableArtifact(event);
             } else if (event.type === "chart") {
               if (typingEl.parentNode) typingEl.remove();
               addChartArtifact(event);
+            } else if (event.type === "dashboard") {
+              if (typingEl.parentNode) typingEl.remove();
+              addDashboardArtifact(event);
             } else if (event.type === "diagram") {
               if (typingEl.parentNode) typingEl.remove();
               addDiagramArtifact(event);
