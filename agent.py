@@ -181,6 +181,7 @@ def run_agent(session_id: str, user_message: str):
             tools=TOOL_SCHEMAS,
             tool_choice="auto",
             temperature=0.2,
+            max_tokens=2048,
             extra_body=EXTRA_BODY,
         )
         msg = response.choices[0].message
@@ -246,6 +247,7 @@ async def run_agent_stream(session_id: str, user_message: str):
                 tools=TOOL_SCHEMAS,
                 tool_choice="auto",
                 temperature=0.2,
+                max_tokens=2048,
                 extra_body=EXTRA_BODY,
                 stream=True,
             )

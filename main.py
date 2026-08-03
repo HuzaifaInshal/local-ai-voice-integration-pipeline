@@ -64,8 +64,8 @@ from db_setup import build_database
 MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-14B-AWQ")
 VLLM_PORT = 8000
 APP_PORT = 8080
-# 3072 context length leaves optimal VRAM headroom for CUDA Graphs without OOM on 2x T4
-MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "3072"))
+# 4096 context length allows full 2048-token generation + system prompt & tools
+MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "4096"))
 
 VLLM_HEALTH_URL = f"http://localhost:{VLLM_PORT}/health"
 
