@@ -1,1753 +1,2073 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Voice Studio — ReAct Agent</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg-color: #ffffff;
-      --surface-color: #f8f9fa;
-      --card-bg: #f1f5f9;
-      --border-color: #e5e7eb;
-      --text-main: #111827;
-      --text-muted: #6b7280;
-      --accent-blue: #3b82f6;
-      --accent-blue-dark: #1d4ed8;
-      --user-msg-bg: #eff6ff;
-      --user-msg-color: #1e3a8a;
-      --bot-msg-bg: #ffffff;
-      --bot-msg-border: #e5e7eb;
-      --trace-bg: #f0fdf4;
-      --trace-border: #bbf7d0;
-      --trace-text: #166534;
-      --status-chip-bg: #e0e7ff;
-      --status-chip-text: #3730a3;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: var(--bg-color);
-      color: var(--text-main);
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* Top Bar Header */
-    header {
-      height: 64px;
-      padding: 0 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-      background: #ffffff;
-      z-index: 20;
-    }
-
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .icon-btn {
-      background: transparent;
-      border: none;
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: var(--text-muted);
-      transition: background-color 0.2s, color 0.2s;
-    }
-
-    .icon-btn:hover {
-      background-color: var(--surface-color);
-      color: var(--text-main);
-    }
-
-    .header-title {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--text-main);
-    }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .reset-btn {
-      background: var(--surface-color);
-      border: 1px solid var(--border-color);
-      color: var(--text-muted);
-      padding: 8px 14px;
-      border-radius: 20px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      transition: all 0.2s ease;
-    }
-
-    .reset-btn:hover {
-      color: var(--text-main);
-      border-color: var(--text-muted);
-      background: #ffffff;
-    }
-
-    /* Mic Indicator Badge on top right */
-    .mic-badge {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: #22c55e;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
-      transition: transform 0.2s ease, background-color 0.2s;
-    }
-
-    .mic-badge.listening {
-      animation: pulse-mic 1.5s infinite ease-in-out;
-    }
-
-    .mic-badge.off {
-      background: #9ca3af;
-      box-shadow: none;
-    }
-
-    @keyframes pulse-mic {
-      0% {
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Voice Studio — ReAct Agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-color: #ffffff;
+        --surface-color: #f8f9fa;
+        --card-bg: #f1f5f9;
+        --border-color: #e5e7eb;
+        --text-main: #111827;
+        --text-muted: #6b7280;
+        --accent-blue: #3b82f6;
+        --accent-blue-dark: #1d4ed8;
+        --user-msg-bg: #eff6ff;
+        --user-msg-color: #1e3a8a;
+        --bot-msg-bg: #ffffff;
+        --bot-msg-border: #e5e7eb;
+        --trace-bg: #f0fdf4;
+        --trace-border: #bbf7d0;
+        --trace-text: #166534;
+        --status-chip-bg: #e0e7ff;
+        --status-chip-text: #3730a3;
       }
 
-      70% {
-        box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
       }
 
-      100% {
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
-      }
-    }
-
-    /* Main Container Layout */
-    main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-      overflow: hidden;
-    }
-
-    /* HERO / INITIAL SCREEN VIEW */
-    #heroContainer {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 32px 24px;
-      z-index: 10;
-      transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-      background: #ffffff;
-    }
-
-    /* Top text renderer on hero screen */
-    .hero-text-wrapper {
-      max-width: 680px;
-      width: 100%;
-      text-align: center;
-      margin-bottom: 48px;
-      min-height: 120px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .hero-text {
-      font-size: 34px;
-      font-weight: 500;
-      color: var(--text-main);
-      line-height: 1.35;
-      letter-spacing: -0.02em;
-      transition: opacity 0.3s ease;
-      word-break: break-word;
-    }
-
-    .hero-text.placeholder {
-      color: #4b5563;
-      font-weight: 400;
-    }
-
-    /* Animated 4 vertical pill bars */
-    .waveform-container {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      height: 64px;
-      margin-bottom: 36px;
-      cursor: pointer;
-    }
-
-    .wave-pill {
-      width: 16px;
-      height: 24px;
-      border-radius: 20px;
-      background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
-      transition: all 0.3s ease;
-      opacity: 0.45;
-    }
-
-    /* Only animate when .active class is present (i.e. actually listening to query) */
-    .waveform-container.active .wave-pill {
-      height: 48px;
-      opacity: 1;
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-      animation: waveBounce 1.2s infinite ease-in-out alternate;
-    }
-
-    .waveform-container.active .wave-pill:nth-child(1) {
-      animation-delay: 0.0s;
-    }
-
-    .waveform-container.active .wave-pill:nth-child(2) {
-      animation-delay: 0.2s;
-    }
-
-    .waveform-container.active .wave-pill:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-
-    .waveform-container.active .wave-pill:nth-child(4) {
-      animation-delay: 0.1s;
-    }
-
-    @keyframes waveBounce {
-      0% {
-        height: 24px;
-        transform: scaleY(0.6);
-        opacity: 0.7;
+      body {
+        font-family:
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-main);
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
       }
 
-      50% {
-        height: 60px;
-        transform: scaleY(1.2);
-        opacity: 1;
+      /* Top Bar Header */
+      header {
+        height: 64px;
+        padding: 0 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        background: #ffffff;
+        z-index: 20;
       }
 
-      100% {
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .icon-btn {
+        background: transparent;
+        border: none;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: var(--text-muted);
+        transition:
+          background-color 0.2s,
+          color 0.2s;
+      }
+
+      .icon-btn:hover {
+        background-color: var(--surface-color);
+        color: var(--text-main);
+      }
+
+      .header-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text-main);
+      }
+
+      .header-right {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .reset-btn {
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        color: var(--text-muted);
+        padding: 8px 14px;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+      }
+
+      .reset-btn:hover {
+        color: var(--text-main);
+        border-color: var(--text-muted);
+        background: #ffffff;
+      }
+
+      /* Mic Indicator Badge on top right */
+      .mic-badge {
+        width: 32px;
         height: 32px;
-        transform: scaleY(0.8);
-        opacity: 0.8;
+        border-radius: 50%;
+        background: #22c55e;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+        transition:
+          transform 0.2s ease,
+          background-color 0.2s;
       }
-    }
 
-    /* Status Pill Tag */
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 20px;
-      border-radius: 9999px;
-      background-color: #eff6ff;
-      color: #1d4ed8;
-      font-size: 14px;
-      font-weight: 500;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-      border: 1px solid #dbeafe;
-    }
+      .mic-badge.listening {
+        animation: pulse-mic 1.5s infinite ease-in-out;
+      }
 
-    .status-pill .check-icon {
-      width: 16px;
-      height: 16px;
-      stroke-width: 2.5;
-      flex-shrink: 0;
-    }
+      .mic-badge.off {
+        background: #9ca3af;
+        box-shadow: none;
+      }
 
-    /* CHAT THREAD VIEW (Mode Chat) */
-    #chatContainer {
-      flex: 1;
-      overflow-y: auto;
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      max-width: 800px;
-      width: 100%;
-      margin: 0 auto;
-      opacity: 0;
-      pointer-events: none;
-      transform: translateY(20px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
-    }
+      @keyframes pulse-mic {
+        0% {
+          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+        }
 
-    /* MODE SWITCHING STYLES */
-    body.mode-chat #heroContainer {
-      opacity: 0;
-      pointer-events: none;
-      transform: translateY(-40px);
-    }
+        70% {
+          box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+        }
 
-    body.mode-chat #chatContainer {
-      opacity: 1;
-      pointer-events: auto;
-      transform: translateY(0);
-    }
+        100% {
+          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+        }
+      }
 
-    /* Chat Messages */
-    .msg {
-      padding: 14px 18px;
-      border-radius: 16px;
-      max-width: 82%;
-      line-height: 1.6;
-      font-size: 15px;
-      white-space: pre-wrap;
-      word-break: break-word;
-      animation: msgPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    }
+      /* Main Container Layout */
+      main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        overflow: hidden;
+      }
 
-    @keyframes msgPop {
-      from {
+      /* HERO / INITIAL SCREEN VIEW */
+      #heroContainer {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 24px;
+        z-index: 10;
+        transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        background: #ffffff;
+      }
+
+      /* Top text renderer on hero screen */
+      .hero-text-wrapper {
+        max-width: 680px;
+        width: 100%;
+        text-align: center;
+        margin-bottom: 48px;
+        min-height: 120px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .hero-text {
+        font-size: 34px;
+        font-weight: 500;
+        color: var(--text-main);
+        line-height: 1.35;
+        letter-spacing: -0.02em;
+        transition: opacity 0.3s ease;
+        word-break: break-word;
+      }
+
+      .hero-text.placeholder {
+        color: #4b5563;
+        font-weight: 400;
+      }
+
+      /* Animated 4 vertical pill bars */
+      .waveform-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        height: 64px;
+        margin-bottom: 36px;
+        cursor: pointer;
+      }
+
+      .wave-pill {
+        width: 16px;
+        height: 24px;
+        border-radius: 20px;
+        background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+        transition: all 0.3s ease;
+        opacity: 0.45;
+      }
+
+      /* Only animate when .active class is present (i.e. actually listening to query) */
+      .waveform-container.active .wave-pill {
+        height: 48px;
+        opacity: 1;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        animation: waveBounce 1.2s infinite ease-in-out alternate;
+      }
+
+      .waveform-container.active .wave-pill:nth-child(1) {
+        animation-delay: 0s;
+      }
+
+      .waveform-container.active .wave-pill:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+
+      .waveform-container.active .wave-pill:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+
+      .waveform-container.active .wave-pill:nth-child(4) {
+        animation-delay: 0.1s;
+      }
+
+      @keyframes waveBounce {
+        0% {
+          height: 24px;
+          transform: scaleY(0.6);
+          opacity: 0.7;
+        }
+
+        50% {
+          height: 60px;
+          transform: scaleY(1.2);
+          opacity: 1;
+        }
+
+        100% {
+          height: 32px;
+          transform: scaleY(0.8);
+          opacity: 0.8;
+        }
+      }
+
+      /* Status Pill Tag */
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 9999px;
+        background-color: #eff6ff;
+        color: #1d4ed8;
+        font-size: 14px;
+        font-weight: 500;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        border: 1px solid #dbeafe;
+      }
+
+      .status-pill .check-icon {
+        width: 16px;
+        height: 16px;
+        stroke-width: 2.5;
+        flex-shrink: 0;
+      }
+
+      /* CHAT THREAD VIEW (Mode Chat) */
+      #chatContainer {
+        flex: 1;
+        overflow-y: auto;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        max-width: 800px;
+        width: 100%;
+        margin: 0 auto;
         opacity: 0;
-        transform: translateY(10px);
+        pointer-events: none;
+        transform: translateY(20px);
+        transition:
+          opacity 0.5s ease,
+          transform 0.5s ease;
       }
 
-      to {
+      /* MODE SWITCHING STYLES */
+      body.mode-chat #heroContainer {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-40px);
+      }
+
+      body.mode-chat #chatContainer {
         opacity: 1;
+        pointer-events: auto;
         transform: translateY(0);
       }
-    }
 
-    .msg.user {
-      align-self: flex-end;
-      background: var(--user-msg-bg);
-      color: var(--user-msg-color);
-      border-bottom-right-radius: 4px;
-      font-weight: 500;
-    }
-
-    .msg.bot {
-      align-self: flex-start;
-      background: var(--bot-msg-bg);
-      color: var(--text-main);
-      border: 1px solid var(--bot-msg-border);
-      border-bottom-left-radius: 4px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-    }
-
-    .msg.bot.markdown {
-      white-space: normal;
-    }
-
-    .msg.bot.markdown p {
-      margin: 0 0 10px;
-    }
-
-    .msg.bot.markdown p:last-child {
-      margin-bottom: 0;
-    }
-
-    .msg.bot.markdown strong {
-      font-weight: 700;
-    }
-
-    .msg.bot.markdown code {
-      background: var(--surface-color);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 1px 5px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 0.92em;
-    }
-
-    .md-table-wrap {
-      max-width: 100%;
-      overflow-x: auto;
-      margin: 10px 0;
-      border: 1px solid var(--border-color);
-      border-radius: 10px;
-    }
-
-    .md-table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 420px;
-      font-size: 13px;
-      background: #ffffff;
-    }
-
-    .md-table th,
-    .md-table td {
-      padding: 9px 10px;
-      border-bottom: 1px solid var(--border-color);
-      text-align: left;
-      vertical-align: top;
-      white-space: normal;
-    }
-
-    .md-table th {
-      background: var(--surface-color);
-      font-weight: 700;
-      color: var(--text-main);
-    }
-
-    .md-table tr:last-child td {
-      border-bottom: none;
-    }
-
-    .artifact {
-      align-self: flex-start;
-      max-width: 96%;
-      width: min(720px, 96%);
-      background: #ffffff;
-      border: 1px solid var(--bot-msg-border);
-      border-radius: 14px;
-      padding: 14px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-      animation: msgPop 0.3s ease forwards;
-    }
-
-    .artifact-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-main);
-    }
-
-    .artifact-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 10px;
-    }
-
-    .artifact-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-
-    .artifact-action-btn {
-      border: 1px solid var(--border-color);
-      background: var(--surface-color);
-      color: var(--text-muted);
-      font-size: 11px;
-      font-weight: 600;
-      border-radius: 999px;
-      padding: 6px 9px;
-      cursor: pointer;
-      transition: color 0.2s, border-color 0.2s, background-color 0.2s;
-    }
-
-    .artifact-action-btn:hover {
-      color: var(--text-main);
-      border-color: #cbd5e1;
-      background: #ffffff;
-    }
-
-    .artifact-meta {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 8px;
-    }
-
-    .artifact-table-wrap {
-      max-width: 100%;
-      overflow-x: auto;
-      border: 1px solid var(--border-color);
-      border-radius: 10px;
-    }
-
-    .artifact table {
-      width: 100%;
-      min-width: 520px;
-      border-collapse: collapse;
-      font-size: 12px;
-    }
-
-    .artifact th,
-    .artifact td {
-      padding: 8px 9px;
-      border-bottom: 1px solid var(--border-color);
-      text-align: left;
-      vertical-align: top;
-    }
-
-    .artifact th {
-      background: var(--surface-color);
-      font-weight: 700;
-    }
-
-    .artifact tr:last-child td {
-      border-bottom: none;
-    }
-
-    .chart-canvas {
-      width: 100%;
-      height: 280px;
-      display: block;
-    }
-
-    .diagram {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      align-items: stretch;
-    }
-
-    .diagram-node {
-      flex: 1 1 210px;
-      border: 1px solid var(--border-color);
-      border-radius: 10px;
-      overflow: hidden;
-      background: #ffffff;
-    }
-
-    .diagram-node-title {
-      padding: 9px 10px;
-      background: var(--surface-color);
-      font-size: 13px;
-      font-weight: 700;
-      border-bottom: 1px solid var(--border-color);
-    }
-
-    .diagram-field {
-      padding: 7px 10px;
-      font-size: 12px;
-      color: var(--text-muted);
-      border-bottom: 1px solid #f1f5f9;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-
-    .diagram-field:last-child {
-      border-bottom: none;
-    }
-
-    .diagram-edges {
-      margin-top: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .diagram-edge {
-      font-size: 12px;
-      color: var(--text-muted);
-      background: var(--surface-color);
-      border: 1px solid var(--border-color);
-      border-radius: 999px;
-      padding: 7px 10px;
-      width: fit-content;
-      max-width: 100%;
-    }
-
-
-    /* Streamed Token Animation */
-    .token {
-      display: inline;
-      opacity: 0;
-      transform: translateY(2px);
-      animation: tokenFade 0.25s ease forwards;
-    }
-
-    @keyframes tokenFade {
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    /* Typing Dots */
-    .typing {
-      align-self: flex-start;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 14px 18px;
-      background: var(--bot-msg-bg);
-      border: 1px solid var(--bot-msg-border);
-      border-radius: 16px;
-      border-bottom-left-radius: 4px;
-    }
-
-    .typing span {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--text-muted);
-      animation: typingPulse 1.2s infinite ease-in-out;
-    }
-
-    .typing span:nth-child(2) {
-      animation-delay: 0.2s;
-    }
-
-    .typing span:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-
-    @keyframes typingPulse {
-
-      0%,
-      80%,
-      100% {
-        opacity: 0.3;
-        transform: scale(0.8);
+      /* Chat Messages */
+      .msg {
+        padding: 14px 18px;
+        border-radius: 16px;
+        max-width: 82%;
+        line-height: 1.6;
+        font-size: 15px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        animation: msgPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       }
 
-      40% {
-        opacity: 1;
-        transform: scale(1.1);
-      }
-    }
+      @keyframes msgPop {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
 
-    /* Tool Call Trace Card */
-    .trace {
-      align-self: flex-start;
-      max-width: 90%;
-      background: var(--trace-bg);
-      border: 1px solid var(--trace-border);
-      border-radius: 12px;
-      padding: 10px 14px;
-      font-size: 13px;
-      color: var(--trace-text);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      animation: msgPop 0.3s ease forwards;
-    }
-
-    .trace summary {
-      cursor: pointer;
-      font-weight: 600;
-    }
-
-    .trace pre {
-      margin-top: 8px;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-size: 12px;
-      color: #14532d;
-    }
-
-    /* Bottom Voice & Input Bar */
-    #inputBar {
-      padding: 16px 24px 20px;
-      background: #ffffff;
-      border-top: 1px solid var(--border-color);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      max-width: 840px;
-      width: 100%;
-      margin: 0 auto;
-      z-index: 20;
-    }
-
-    .compact-mic-btn {
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      background: #eff6ff;
-      border: 1px solid #dbeafe;
-      color: var(--accent-blue-dark);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      flex-shrink: 0;
-    }
-
-    .compact-mic-btn.active {
-      background: #ef4444;
-      color: white;
-      border-color: #dc2626;
-      box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
-      animation: pulse-mic-red 1.2s infinite ease-in-out;
-    }
-
-    @keyframes pulse-mic-red {
-
-      0%,
-      100% {
-        transform: scale(1);
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
 
-      50% {
-        transform: scale(1.06);
+      .msg.user {
+        align-self: flex-end;
+        background: var(--user-msg-bg);
+        color: var(--user-msg-color);
+        border-bottom-right-radius: 4px;
+        font-weight: 500;
       }
-    }
 
-    #inputBar input {
-      flex: 1;
-      background: var(--surface-color);
-      border: 1px solid var(--border-color);
-      color: var(--text-main);
-      padding: 12px 18px;
-      border-radius: 24px;
-      font-size: 15px;
-      outline: none;
-      transition: border-color 0.2s, background-color 0.2s;
-    }
+      .msg.bot {
+        align-self: flex-start;
+        background: var(--bot-msg-bg);
+        color: var(--text-main);
+        border: 1px solid var(--bot-msg-border);
+        border-bottom-left-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      }
 
-    #inputBar input:focus {
-      border-color: var(--accent-blue);
-      background: #ffffff;
-    }
+      .msg.bot.markdown {
+        white-space: normal;
+      }
 
-    #sendBtn {
-      background: var(--accent-blue);
-      border: none;
-      color: white;
-      padding: 0 20px;
-      height: 44px;
-      border-radius: 22px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background-color 0.2s;
-      flex-shrink: 0;
-    }
+      .msg.bot.markdown p {
+        margin: 0 0 10px;
+      }
 
-    #sendBtn:hover {
-      background-color: var(--accent-blue-dark);
-    }
+      .msg.bot.markdown p:last-child {
+        margin-bottom: 0;
+      }
 
-    #sendBtn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+      .msg.bot.markdown strong {
+        font-weight: 700;
+      }
 
-    /* Sub-text hint */
-    .session-hint {
-      text-align: center;
-      font-size: 11px;
-      color: var(--text-muted);
-      padding-bottom: 8px;
-    }
-  </style>
-</head>
+      .msg.bot.markdown code {
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 1px 5px;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.92em;
+      }
 
-<body class="mode-hero">
+      .md-table-wrap {
+        max-width: 100%;
+        overflow-x: auto;
+        margin: 10px 0;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+      }
 
-  <header>
-    <div class="header-left">
-      <button class="icon-btn" id="backBtn" title="Back to Voice View">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7" />
-        </svg>
-      </button>
-      <span class="header-title">AI Voice Studio</span>
-    </div>
-    <div class="header-right">
-      <button class="reset-btn" id="resetBtn">Reset session</button>
-      <div class="mic-badge listening" id="headerMicBadge" title="Voice Listener Ready">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      .md-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 420px;
+        font-size: 13px;
+        background: #ffffff;
+      }
+
+      .md-table th,
+      .md-table td {
+        padding: 9px 10px;
+        border-bottom: 1px solid var(--border-color);
+        text-align: left;
+        vertical-align: top;
+        white-space: normal;
+      }
+
+      .md-table th {
+        background: var(--surface-color);
+        font-weight: 700;
+        color: var(--text-main);
+      }
+
+      .md-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .artifact {
+        align-self: flex-start;
+        max-width: 96%;
+        width: min(720px, 96%);
+        background: #ffffff;
+        border: 1px solid var(--bot-msg-border);
+        border-radius: 14px;
+        padding: 14px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        animation: msgPop 0.3s ease forwards;
+      }
+
+      .artifact-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text-main);
+      }
+
+      .artifact-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+
+      .artifact-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      .artifact-action-btn {
+        border: 1px solid var(--border-color);
+        background: var(--surface-color);
+        color: var(--text-muted);
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 999px;
+        padding: 6px 9px;
+        cursor: pointer;
+        transition:
+          color 0.2s,
+          border-color 0.2s,
+          background-color 0.2s;
+      }
+
+      .artifact-action-btn:hover {
+        color: var(--text-main);
+        border-color: #cbd5e1;
+        background: #ffffff;
+      }
+
+      .artifact-meta {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 8px;
+      }
+
+      .dashboard-kpis {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .dashboard-kpi {
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: linear-gradient(135deg, #f8fbff 0%, #f1f5f9 100%);
+      }
+
+      .dashboard-kpi-label {
+        font-size: 11px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 4px;
+      }
+
+      .dashboard-kpi-value {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text-main);
+      }
+
+      .dashboard-charts {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 12px;
+        margin-top: 4px;
+      }
+
+      .dashboard-chart-card {
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 10px;
+        background: #fcfdff;
+      }
+
+      .dashboard-chart-card .artifact-title {
+        margin-bottom: 8px;
+        font-size: 12px;
+      }
+
+      .dashboard-insights {
+        margin-top: 12px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .dashboard-insight {
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: #f8fafc;
+        border: 1px solid var(--border-color);
+        color: var(--text-main);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .artifact-table-wrap {
+        max-width: 100%;
+        overflow-x: auto;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+      }
+
+      .artifact table {
+        width: 100%;
+        min-width: 520px;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+
+      .artifact th,
+      .artifact td {
+        padding: 8px 9px;
+        border-bottom: 1px solid var(--border-color);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      .artifact th {
+        background: var(--surface-color);
+        font-weight: 700;
+      }
+
+      .artifact tr:last-child td {
+        border-bottom: none;
+      }
+
+      .chart-canvas {
+        width: 100%;
+        height: 280px;
+        display: block;
+      }
+
+      .diagram {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: stretch;
+      }
+
+      .diagram-node {
+        flex: 1 1 210px;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        overflow: hidden;
+        background: #ffffff;
+      }
+
+      .diagram-node-title {
+        padding: 9px 10px;
+        background: var(--surface-color);
+        font-size: 13px;
+        font-weight: 700;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .diagram-field {
+        padding: 7px 10px;
+        font-size: 12px;
+        color: var(--text-muted);
+        border-bottom: 1px solid #f1f5f9;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+
+      .diagram-field:last-child {
+        border-bottom: none;
+      }
+
+      .diagram-edges {
+        margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .diagram-edge {
+        font-size: 12px;
+        color: var(--text-muted);
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 999px;
+        padding: 7px 10px;
+        width: fit-content;
+        max-width: 100%;
+      }
+
+      /* Streamed Token Animation */
+      .token {
+        display: inline;
+        opacity: 0;
+        transform: translateY(2px);
+        animation: tokenFade 0.25s ease forwards;
+      }
+
+      @keyframes tokenFade {
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Typing Dots */
+      .typing {
+        align-self: flex-start;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 14px 18px;
+        background: var(--bot-msg-bg);
+        border: 1px solid var(--bot-msg-border);
+        border-radius: 16px;
+        border-bottom-left-radius: 4px;
+      }
+
+      .typing span {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--text-muted);
+        animation: typingPulse 1.2s infinite ease-in-out;
+      }
+
+      .typing span:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+
+      .typing span:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+
+      @keyframes typingPulse {
+        0%,
+        80%,
+        100% {
+          opacity: 0.3;
+          transform: scale(0.8);
+        }
+
+        40% {
+          opacity: 1;
+          transform: scale(1.1);
+        }
+      }
+
+      /* Tool Call Trace Card */
+      .trace {
+        align-self: flex-start;
+        max-width: 90%;
+        background: var(--trace-bg);
+        border: 1px solid var(--trace-border);
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-size: 13px;
+        color: var(--trace-text);
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        animation: msgPop 0.3s ease forwards;
+      }
+
+      .trace summary {
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      .trace pre {
+        margin-top: 8px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 12px;
+        color: #14532d;
+      }
+
+      /* Bottom Voice & Input Bar */
+      #inputBar {
+        padding: 16px 24px 20px;
+        background: #ffffff;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        max-width: 840px;
+        width: 100%;
+        margin: 0 auto;
+        z-index: 20;
+      }
+
+      .compact-mic-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: #eff6ff;
+        border: 1px solid #dbeafe;
+        color: var(--accent-blue-dark);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+      }
+
+      .compact-mic-btn.active {
+        background: #ef4444;
+        color: white;
+        border-color: #dc2626;
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+        animation: pulse-mic-red 1.2s infinite ease-in-out;
+      }
+
+      @keyframes pulse-mic-red {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+
+        50% {
+          transform: scale(1.06);
+        }
+      }
+
+      #inputBar input {
+        flex: 1;
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        color: var(--text-main);
+        padding: 12px 18px;
+        border-radius: 24px;
+        font-size: 15px;
+        outline: none;
+        transition:
+          border-color 0.2s,
+          background-color 0.2s;
+      }
+
+      #inputBar input:focus {
+        border-color: var(--accent-blue);
+        background: #ffffff;
+      }
+
+      #sendBtn {
+        background: var(--accent-blue);
+        border: none;
+        color: white;
+        padding: 0 20px;
+        height: 44px;
+        border-radius: 22px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        flex-shrink: 0;
+      }
+
+      #sendBtn:hover {
+        background-color: var(--accent-blue-dark);
+      }
+
+      #sendBtn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      /* Sub-text hint */
+      .session-hint {
+        text-align: center;
+        font-size: 11px;
+        color: var(--text-muted);
+        padding-bottom: 8px;
+      }
+    </style>
+  </head>
+
+  <body class="mode-hero">
+    <header>
+      <div class="header-left">
+        <button class="icon-btn" id="backBtn" title="Back to Voice View">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <span class="header-title">AI Voice Studio</span>
+      </div>
+      <div class="header-right">
+        <button class="reset-btn" id="resetBtn">Reset session</button>
+        <div
+          class="mic-badge listening"
+          id="headerMicBadge"
+          title="Voice Listener Ready"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="8" y1="23" x2="16" y2="23" />
+          </svg>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- HERO INITIAL VOICE SCREEN -->
+      <div id="heroContainer">
+        <div class="hero-text-wrapper">
+          <h1 class="hero-text placeholder" id="heroText">
+            Say "Alfa" to start
+          </h1>
+        </div>
+
+        <!-- 4 Blue Vertical Waveform Pills -->
+        <div
+          class="waveform-container"
+          id="heroWaveform"
+          title="Click to toggle listening"
+        >
+          <div class="wave-pill"></div>
+          <div class="wave-pill"></div>
+          <div class="wave-pill"></div>
+          <div class="wave-pill"></div>
+        </div>
+
+        <!-- Status Tag -->
+        <div class="status-pill" id="statusPill">
+          <svg
+            class="check-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span id="statusPillText"
+            >Say "Alfa" to start • Auto search is on</span
+          >
+        </div>
+      </div>
+
+      <!-- CHAT THREAD VIEW -->
+      <div id="chatContainer"></div>
+    </main>
+
+    <div class="session-hint" id="sessionHint"></div>
+
+    <div id="inputBar">
+      <button
+        class="compact-mic-btn"
+        id="bottomMicBtn"
+        title="Toggle Listening"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
           <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
           <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
           <line x1="12" y1="19" x2="12" y2="23" />
           <line x1="8" y1="23" x2="16" y2="23" />
         </svg>
-      </div>
-    </div>
-  </header>
-
-  <main>
-    <!-- HERO INITIAL VOICE SCREEN -->
-    <div id="heroContainer">
-      <div class="hero-text-wrapper">
-        <h1 class="hero-text placeholder" id="heroText">Say "Alfa" to start</h1>
-      </div>
-
-      <!-- 4 Blue Vertical Waveform Pills -->
-      <div class="waveform-container" id="heroWaveform" title="Click to toggle listening">
-        <div class="wave-pill"></div>
-        <div class="wave-pill"></div>
-        <div class="wave-pill"></div>
-        <div class="wave-pill"></div>
-      </div>
-
-      <!-- Status Tag -->
-      <div class="status-pill" id="statusPill">
-        <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-        <span id="statusPillText">Say "Alfa" to start • Auto search is on</span>
-      </div>
+      </button>
+      <input
+        id="userInput"
+        type="text"
+        placeholder="Ask something or say 'Alfa'..."
+      />
+      <button id="sendBtn">Send</button>
     </div>
 
-    <!-- CHAT THREAD VIEW -->
-    <div id="chatContainer"></div>
-  </main>
+    <script>
+      const sessionId = "kaggle-poc-" + Math.random().toString(36).slice(2);
+      const chatContainer = document.getElementById("chatContainer");
+      const input = document.getElementById("userInput");
+      const sendBtn = document.getElementById("sendBtn");
+      const resetBtn = document.getElementById("resetBtn");
+      const backBtn = document.getElementById("backBtn");
+      const sessionHint = document.getElementById("sessionHint");
+      const heroText = document.getElementById("heroText");
+      const statusPillText = document.getElementById("statusPillText");
+      const headerMicBadge = document.getElementById("headerMicBadge");
+      const bottomMicBtn = document.getElementById("bottomMicBtn");
+      const heroWaveform = document.getElementById("heroWaveform");
 
-  <div class="session-hint" id="sessionHint"></div>
+      sessionHint.textContent = "session: " + sessionId;
 
-  <div id="inputBar">
-    <button class="compact-mic-btn" id="bottomMicBtn" title="Toggle Listening">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-        <line x1="12" y1="19" x2="12" y2="23" />
-        <line x1="8" y1="23" x2="16" y2="23" />
-      </svg>
-    </button>
-    <input id="userInput" type="text" placeholder="Ask something or say 'Alfa'..." />
-    <button id="sendBtn">Send</button>
-  </div>
+      // View State Management
+      // Modes: 'IDLE_WAITING_WAKEWORD', 'LISTENING_QUERY', 'SUBMITTING'
+      let currentVoiceMode = "IDLE_WAITING_WAKEWORD";
+      let silenceTimer = null;
+      let finalQueryText = "";
+      let speechRecognition = null;
 
-  <script>
-    const sessionId = "kaggle-poc-" + Math.random().toString(36).slice(2);
-    const chatContainer = document.getElementById("chatContainer");
-    const input = document.getElementById("userInput");
-    const sendBtn = document.getElementById("sendBtn");
-    const resetBtn = document.getElementById("resetBtn");
-    const backBtn = document.getElementById("backBtn");
-    const sessionHint = document.getElementById("sessionHint");
-    const heroText = document.getElementById("heroText");
-    const statusPillText = document.getElementById("statusPillText");
-    const headerMicBadge = document.getElementById("headerMicBadge");
-    const bottomMicBtn = document.getElementById("bottomMicBtn");
-    const heroWaveform = document.getElementById("heroWaveform");
+      // Expanded Wake Word Regex to capture phonetic variations (alfa, alpha, al fa, al-fa, olfa, elpha, elfa)
+      const wakeWordRegex = /\b(alfa|alpha|al\s+fa|al\-fa|olfa|elpha|elfa)\b/i;
 
-    sessionHint.textContent = "session: " + sessionId;
-
-    // View State Management
-    // Modes: 'IDLE_WAITING_WAKEWORD', 'LISTENING_QUERY', 'SUBMITTING'
-    let currentVoiceMode = 'IDLE_WAITING_WAKEWORD';
-    let silenceTimer = null;
-    let finalQueryText = '';
-    let speechRecognition = null;
-
-    // Expanded Wake Word Regex to capture phonetic variations (alfa, alpha, al fa, al-fa, olfa, elpha, elfa)
-    const wakeWordRegex = /\b(alfa|alpha|al\s+fa|al\-fa|olfa|elpha|elfa)\b/i;
-
-    function escapeHtml(value) {
-      return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-    }
-
-    function formatInlineMarkdown(text) {
-      let html = escapeHtml(text);
-      html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
-      html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-      return html;
-    }
-
-    function splitMarkdownTableRow(line) {
-      const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
-      return trimmed.split("|").map(cell => cell.trim());
-    }
-
-    function isMarkdownTableSeparator(line) {
-      const cells = splitMarkdownTableRow(line);
-      return cells.length > 1 && cells.every(cell => /^:?-{3,}:?$/.test(cell));
-    }
-
-    function renderMarkdown(text) {
-      text = stripUnsafeAssistantMarkup(text);
-      const lines = String(text ?? "").split(/\r?\n/);
-      const html = [];
-      let paragraph = [];
-
-      function flushParagraph() {
-        if (!paragraph.length) return;
-        html.push("<p>" + paragraph.map(formatInlineMarkdown).join("<br>") + "</p>");
-        paragraph = [];
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
       }
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const next = lines[i + 1] || "";
+      function formatInlineMarkdown(text) {
+        let html = escapeHtml(text);
+        html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+        html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        return html;
+      }
 
-        if (line.includes("|") && next.includes("|") && isMarkdownTableSeparator(next)) {
-          flushParagraph();
-          const headers = splitMarkdownTableRow(line);
-          i += 2;
-          const rows = [];
-          while (i < lines.length && lines[i].includes("|") && lines[i].trim()) {
-            rows.push(splitMarkdownTableRow(lines[i]));
-            i++;
-          }
-          i--;
+      function splitMarkdownTableRow(line) {
+        const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+        return trimmed.split("|").map((cell) => cell.trim());
+      }
 
-          html.push('<div class="md-table-wrap"><table class="md-table"><thead><tr>');
-          headers.forEach(header => html.push("<th>" + formatInlineMarkdown(header) + "</th>"));
-          html.push("</tr></thead><tbody>");
-          rows.forEach(row => {
-            html.push("<tr>");
-            headers.forEach((_, index) => {
-              html.push("<td>" + formatInlineMarkdown(row[index] || "") + "</td>");
-            });
-            html.push("</tr>");
-          });
-          html.push("</tbody></table></div>");
-        } else if (!line.trim()) {
-          flushParagraph();
-        } else {
-          paragraph.push(line);
+      function isMarkdownTableSeparator(line) {
+        const cells = splitMarkdownTableRow(line);
+        return (
+          cells.length > 1 && cells.every((cell) => /^:?-{3,}:?$/.test(cell))
+        );
+      }
+
+      function renderMarkdown(text) {
+        text = stripUnsafeAssistantMarkup(text);
+        const lines = String(text ?? "").split(/\r?\n/);
+        const html = [];
+        let paragraph = [];
+
+        function flushParagraph() {
+          if (!paragraph.length) return;
+          html.push(
+            "<p>" + paragraph.map(formatInlineMarkdown).join("<br>") + "</p>"
+          );
+          paragraph = [];
         }
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const next = lines[i + 1] || "";
+
+          if (
+            line.includes("|") &&
+            next.includes("|") &&
+            isMarkdownTableSeparator(next)
+          ) {
+            flushParagraph();
+            const headers = splitMarkdownTableRow(line);
+            i += 2;
+            const rows = [];
+            while (
+              i < lines.length &&
+              lines[i].includes("|") &&
+              lines[i].trim()
+            ) {
+              rows.push(splitMarkdownTableRow(lines[i]));
+              i++;
+            }
+            i--;
+
+            html.push(
+              '<div class="md-table-wrap"><table class="md-table"><thead><tr>'
+            );
+            headers.forEach((header) =>
+              html.push("<th>" + formatInlineMarkdown(header) + "</th>")
+            );
+            html.push("</tr></thead><tbody>");
+            rows.forEach((row) => {
+              html.push("<tr>");
+              headers.forEach((_, index) => {
+                html.push(
+                  "<td>" + formatInlineMarkdown(row[index] || "") + "</td>"
+                );
+              });
+              html.push("</tr>");
+            });
+            html.push("</tbody></table></div>");
+          } else if (!line.trim()) {
+            flushParagraph();
+          } else {
+            paragraph.push(line);
+          }
+        }
+
+        flushParagraph();
+        return html.join("");
       }
 
-      flushParagraph();
-      return html.join("");
-    }
-
-    function stripUnsafeAssistantMarkup(text) {
-      return String(text ?? "")
-        .replace(/!\[[^\]]*\]\([^)]+\)/g, "[chart rendered above]")
-        .replace(/data:image\/[^;\s]+;base64,[A-Za-z0-9+/=\s]+/g, "[chart rendered above]");
-    }
-
-    function addMsg(role, text) {
-      const div = document.createElement("div");
-      div.className = "msg " + role;
-      if (role === "bot") {
-        div.classList.add("markdown");
-        div.dataset.rawMarkdown = text || "";
-        div.innerHTML = renderMarkdown(text || "");
-      } else {
-        div.textContent = text;
+      function stripUnsafeAssistantMarkup(text) {
+        return String(text ?? "")
+          .replace(/!\[[^\]]*\]\([^)]+\)/g, "[chart rendered above]")
+          .replace(
+            /data:image\/[^;\s]+;base64,[A-Za-z0-9+/=\s]+/g,
+            "[chart rendered above]"
+          );
       }
-      chatContainer.appendChild(div);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-      return div;
-    }
 
-    function addTypingIndicator() {
-      const div = document.createElement("div");
-      div.className = "typing";
-      div.innerHTML = "<span></span><span></span><span></span>";
-      chatContainer.appendChild(div);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-      return div;
-    }
+      function addMsg(role, text) {
+        const div = document.createElement("div");
+        div.className = "msg " + role;
+        if (role === "bot") {
+          div.classList.add("markdown");
+          div.dataset.rawMarkdown = text || "";
+          div.innerHTML = renderMarkdown(text || "");
+        } else {
+          div.textContent = text;
+        }
+        chatContainer.appendChild(div);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        return div;
+      }
 
-    function addTrace(t) {
-      const details = document.createElement("details");
-      details.className = "trace";
-      const summary = document.createElement("summary");
-      summary.textContent = "tool call: " + t.tool + "(" + JSON.stringify(t.args) + ")";
-      const pre = document.createElement("pre");
-      pre.textContent = t.result;
-      details.appendChild(summary);
-      details.appendChild(pre);
-      chatContainer.appendChild(details);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
+      function addTypingIndicator() {
+        const div = document.createElement("div");
+        div.className = "typing";
+        div.innerHTML = "<span></span><span></span><span></span>";
+        chatContainer.appendChild(div);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        return div;
+      }
 
-    function appendToken(bubble, text) {
-      bubble.dataset.rawMarkdown = (bubble.dataset.rawMarkdown || "") + text;
-      bubble.innerHTML = renderMarkdown(bubble.dataset.rawMarkdown);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
+      function addTrace(t) {
+        const details = document.createElement("details");
+        details.className = "trace";
+        const summary = document.createElement("summary");
+        summary.textContent =
+          "tool call: " + t.tool + "(" + JSON.stringify(t.args) + ")";
+        const pre = document.createElement("pre");
+        pre.textContent = t.result;
+        details.appendChild(summary);
+        details.appendChild(pre);
+        chatContainer.appendChild(details);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
 
-    function addTableArtifact(event) {
-      const wrap = document.createElement("div");
-      wrap.className = "artifact";
+      function appendToken(bubble, text) {
+        bubble.dataset.rawMarkdown = (bubble.dataset.rawMarkdown || "") + text;
+        bubble.innerHTML = renderMarkdown(bubble.dataset.rawMarkdown);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
 
-      const head = document.createElement("div");
-      head.className = "artifact-head";
-      const title = document.createElement("div");
-      title.className = "artifact-title";
-      title.textContent = event.title || "Table";
-      head.appendChild(title);
+      function addTableArtifact(event) {
+        const wrap = document.createElement("div");
+        wrap.className = "artifact";
 
-      const actions = document.createElement("div");
-      actions.className = "artifact-actions";
-      const csvBtn = document.createElement("button");
-      csvBtn.className = "artifact-action-btn";
-      csvBtn.type = "button";
-      csvBtn.textContent = "CSV";
-      csvBtn.addEventListener("click", () => downloadCsv(event));
-      actions.appendChild(csvBtn);
-      head.appendChild(actions);
-      wrap.appendChild(head);
+        const head = document.createElement("div");
+        head.className = "artifact-head";
+        const title = document.createElement("div");
+        title.className = "artifact-title";
+        title.textContent = event.title || "Table";
+        head.appendChild(title);
 
-      const tableWrap = document.createElement("div");
-      tableWrap.className = "artifact-table-wrap";
-      const table = document.createElement("table");
-      const thead = document.createElement("thead");
-      const headRow = document.createElement("tr");
-      (event.columns || []).forEach(column => {
-        const th = document.createElement("th");
-        th.textContent = column;
-        headRow.appendChild(th);
-      });
-      thead.appendChild(headRow);
-      table.appendChild(thead);
+        const actions = document.createElement("div");
+        actions.className = "artifact-actions";
+        const csvBtn = document.createElement("button");
+        csvBtn.className = "artifact-action-btn";
+        csvBtn.type = "button";
+        csvBtn.textContent = "CSV";
+        csvBtn.addEventListener("click", () => downloadCsv(event));
+        actions.appendChild(csvBtn);
+        head.appendChild(actions);
+        wrap.appendChild(head);
 
-      const tbody = document.createElement("tbody");
-      (event.rows || []).forEach(row => {
-        const tr = document.createElement("tr");
-        (event.columns || []).forEach(column => {
-          const td = document.createElement("td");
-          td.textContent = row[column] ?? "";
-          tr.appendChild(td);
+        const tableWrap = document.createElement("div");
+        tableWrap.className = "artifact-table-wrap";
+        const table = document.createElement("table");
+        const thead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        (event.columns || []).forEach((column) => {
+          const th = document.createElement("th");
+          th.textContent = column;
+          headRow.appendChild(th);
         });
-        tbody.appendChild(tr);
-      });
-      table.appendChild(tbody);
-      tableWrap.appendChild(table);
-      wrap.appendChild(tableWrap);
+        thead.appendChild(headRow);
+        table.appendChild(thead);
 
-      if (event.row_count && event.rows && event.row_count > event.rows.length) {
+        const tbody = document.createElement("tbody");
+        (event.rows || []).forEach((row) => {
+          const tr = document.createElement("tr");
+          (event.columns || []).forEach((column) => {
+            const td = document.createElement("td");
+            td.textContent = row[column] ?? "";
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        tableWrap.appendChild(table);
+        wrap.appendChild(tableWrap);
+
+        if (
+          event.row_count &&
+          event.rows &&
+          event.row_count > event.rows.length
+        ) {
+          const meta = document.createElement("div");
+          meta.className = "artifact-meta";
+          meta.textContent = `Showing ${event.rows.length} of ${event.row_count} rows.`;
+          wrap.appendChild(meta);
+        }
+
+        chatContainer.appendChild(wrap);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+
+      function addChartArtifact(event) {
+        const wrap = document.createElement("div");
+        wrap.className = "artifact";
+
+        const head = document.createElement("div");
+        head.className = "artifact-head";
+        const title = document.createElement("div");
+        title.className = "artifact-title";
+        title.textContent = event.title || "Chart";
+        head.appendChild(title);
+
+        const actions = document.createElement("div");
+        actions.className = "artifact-actions";
+        const pngBtn = document.createElement("button");
+        pngBtn.className = "artifact-action-btn";
+        pngBtn.type = "button";
+        pngBtn.textContent = "PNG";
+        actions.appendChild(pngBtn);
+        head.appendChild(actions);
+        wrap.appendChild(head);
+
+        const canvas = document.createElement("canvas");
+        canvas.className = "chart-canvas";
+        canvas.width = 720;
+        canvas.height = 280;
+        wrap.appendChild(canvas);
+
         const meta = document.createElement("div");
         meta.className = "artifact-meta";
-        meta.textContent = `Showing ${event.rows.length} of ${event.row_count} rows.`;
+        meta.textContent = chartMetaText(event);
         wrap.appendChild(meta);
+
+        chatContainer.appendChild(wrap);
+        drawChart(canvas, event);
+        pngBtn.addEventListener("click", () =>
+          downloadCanvasPng(canvas, event.title || "chart")
+        );
+        chatContainer.scrollTop = chatContainer.scrollHeight;
       }
 
-      chatContainer.appendChild(wrap);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
+      function addDashboardArtifact(event) {
+        const wrap = document.createElement("div");
+        wrap.className = "artifact";
 
-    function addChartArtifact(event) {
-      const wrap = document.createElement("div");
-      wrap.className = "artifact";
+        const head = document.createElement("div");
+        head.className = "artifact-head";
+        const title = document.createElement("div");
+        title.className = "artifact-title";
+        title.textContent = event.title || "Dashboard";
+        head.appendChild(title);
+        wrap.appendChild(head);
 
-      const head = document.createElement("div");
-      head.className = "artifact-head";
-      const title = document.createElement("div");
-      title.className = "artifact-title";
-      title.textContent = event.title || "Chart";
-      head.appendChild(title);
+        if (event.kpis && event.kpis.length) {
+          const kpiGrid = document.createElement("div");
+          kpiGrid.className = "dashboard-kpis";
+          event.kpis.forEach((kpi) => {
+            const card = document.createElement("div");
+            card.className = "dashboard-kpi";
+            const label = document.createElement("div");
+            label.className = "dashboard-kpi-label";
+            label.textContent = kpi.label || "KPI";
+            const value = document.createElement("div");
+            value.className = "dashboard-kpi-value";
+            value.textContent = kpi.value ?? "";
+            card.appendChild(label);
+            card.appendChild(value);
+            kpiGrid.appendChild(card);
+          });
+          wrap.appendChild(kpiGrid);
+        }
 
-      const actions = document.createElement("div");
-      actions.className = "artifact-actions";
-      const pngBtn = document.createElement("button");
-      pngBtn.className = "artifact-action-btn";
-      pngBtn.type = "button";
-      pngBtn.textContent = "PNG";
-      actions.appendChild(pngBtn);
-      head.appendChild(actions);
-      wrap.appendChild(head);
+        if (event.charts && event.charts.length) {
+          const chartsGrid = document.createElement("div");
+          chartsGrid.className = "dashboard-charts";
+          event.charts.forEach((chartSpec) => {
+            const card = document.createElement("div");
+            card.className = "dashboard-chart-card";
+            const chartTitle = document.createElement("div");
+            chartTitle.className = "artifact-title";
+            chartTitle.textContent = chartSpec.title || "Chart";
+            card.appendChild(chartTitle);
+            const canvas = document.createElement("canvas");
+            canvas.className = "chart-canvas";
+            canvas.width = 720;
+            canvas.height = 220;
+            card.appendChild(canvas);
+            chartsGrid.appendChild(card);
+            drawChart(canvas, chartSpec);
+          });
+          wrap.appendChild(chartsGrid);
+        }
 
-      const canvas = document.createElement("canvas");
-      canvas.className = "chart-canvas";
-      canvas.width = 720;
-      canvas.height = 280;
-      wrap.appendChild(canvas);
+        if (event.insights && event.insights.length) {
+          const insights = document.createElement("div");
+          insights.className = "dashboard-insights";
+          event.insights.forEach((insight) => {
+            const item = document.createElement("div");
+            item.className = "dashboard-insight";
+            item.textContent = insight;
+            insights.appendChild(item);
+          });
+          wrap.appendChild(insights);
+        }
 
-      const meta = document.createElement("div");
-      meta.className = "artifact-meta";
-      meta.textContent = chartMetaText(event);
-      wrap.appendChild(meta);
+        chatContainer.appendChild(wrap);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
 
-      chatContainer.appendChild(wrap);
-      drawChart(canvas, event);
-      pngBtn.addEventListener("click", () => downloadCanvasPng(canvas, event.title || "chart"));
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
+      function addDiagramArtifact(event) {
+        const wrap = document.createElement("div");
+        wrap.className = "artifact";
 
-    function addDiagramArtifact(event) {
-      const wrap = document.createElement("div");
-      wrap.className = "artifact";
+        const title = document.createElement("div");
+        title.className = "artifact-title";
+        title.textContent = event.title || "Diagram";
+        wrap.appendChild(title);
 
-      const title = document.createElement("div");
-      title.className = "artifact-title";
-      title.textContent = event.title || "Diagram";
-      wrap.appendChild(title);
+        const diagram = document.createElement("div");
+        diagram.className = "diagram";
+        (event.nodes || []).forEach((node) => {
+          const card = document.createElement("div");
+          card.className = "diagram-node";
 
-      const diagram = document.createElement("div");
-      diagram.className = "diagram";
-      (event.nodes || []).forEach(node => {
-        const card = document.createElement("div");
-        card.className = "diagram-node";
+          const nodeTitle = document.createElement("div");
+          nodeTitle.className = "diagram-node-title";
+          nodeTitle.textContent = node.label || node.id || "Node";
+          card.appendChild(nodeTitle);
 
-        const nodeTitle = document.createElement("div");
-        nodeTitle.className = "diagram-node-title";
-        nodeTitle.textContent = node.label || node.id || "Node";
-        card.appendChild(nodeTitle);
+          (node.fields || []).forEach((field) => {
+            const fieldEl = document.createElement("div");
+            fieldEl.className = "diagram-field";
+            fieldEl.textContent = field;
+            card.appendChild(fieldEl);
+          });
 
-        (node.fields || []).forEach(field => {
-          const fieldEl = document.createElement("div");
-          fieldEl.className = "diagram-field";
-          fieldEl.textContent = field;
-          card.appendChild(fieldEl);
+          diagram.appendChild(card);
         });
+        wrap.appendChild(diagram);
 
-        diagram.appendChild(card);
-      });
-      wrap.appendChild(diagram);
+        if (event.edges && event.edges.length) {
+          const edges = document.createElement("div");
+          edges.className = "diagram-edges";
+          event.edges.forEach((edge) => {
+            const edgeEl = document.createElement("div");
+            edgeEl.className = "diagram-edge";
+            edgeEl.textContent = `${edge.from} -> ${edge.to} via ${edge.label || "relationship"}`;
+            edges.appendChild(edgeEl);
+          });
+          wrap.appendChild(edges);
+        }
 
-      if (event.edges && event.edges.length) {
-        const edges = document.createElement("div");
-        edges.className = "diagram-edges";
-        event.edges.forEach(edge => {
-          const edgeEl = document.createElement("div");
-          edgeEl.className = "diagram-edge";
-          edgeEl.textContent = `${edge.from} -> ${edge.to} via ${edge.label || "relationship"}`;
-          edges.appendChild(edgeEl);
+        chatContainer.appendChild(wrap);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+
+      function chartMetaText(event) {
+        const source = event.source_columns || {};
+        if (event.chart_type === "pie" || event.chart_type === "donut") {
+          return `${event.chart_type} • ${source.label || "label"} by ${source.value || "value"}`;
+        }
+        if (event.chart_type === "scatter") {
+          return `scatter • ${source.x || "x"} vs ${source.y || "y"}`;
+        }
+        const series = source.series ? ` grouped by ${source.series}` : "";
+        return `${event.chart_type || "chart"} • ${source.x || "x"} vs ${source.y || "y"}${series}`;
+      }
+
+      function downloadCsv(event) {
+        const columns = event.columns || [];
+        const rows = event.rows || [];
+        const lines = [columns.map(csvCell).join(",")];
+        rows.forEach((row) => {
+          lines.push(
+            columns.map((column) => csvCell(row[column] ?? "")).join(",")
+          );
         });
-        wrap.appendChild(edges);
+        downloadBlob(
+          lines.join("\n"),
+          safeFilename(event.title || "table") + ".csv",
+          "text/csv;charset=utf-8"
+        );
       }
 
-      chatContainer.appendChild(wrap);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
-
-    function chartMetaText(event) {
-      const source = event.source_columns || {};
-      if (event.chart_type === "pie" || event.chart_type === "donut") {
-        return `${event.chart_type} • ${source.label || "label"} by ${source.value || "value"}`;
-      }
-      if (event.chart_type === "scatter") {
-        return `scatter • ${source.x || "x"} vs ${source.y || "y"}`;
-      }
-      const series = source.series ? ` grouped by ${source.series}` : "";
-      return `${event.chart_type || "chart"} • ${source.x || "x"} vs ${source.y || "y"}${series}`;
-    }
-
-    function downloadCsv(event) {
-      const columns = event.columns || [];
-      const rows = event.rows || [];
-      const lines = [columns.map(csvCell).join(",")];
-      rows.forEach(row => {
-        lines.push(columns.map(column => csvCell(row[column] ?? "")).join(","));
-      });
-      downloadBlob(lines.join("\n"), safeFilename(event.title || "table") + ".csv", "text/csv;charset=utf-8");
-    }
-
-    function csvCell(value) {
-      const text = String(value ?? "");
-      if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
-      return text;
-    }
-
-    function downloadCanvasPng(canvas, title) {
-      const link = document.createElement("a");
-      link.download = safeFilename(title || "chart") + ".png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-    }
-
-    function downloadBlob(content, filename, type) {
-      const blob = new Blob([content], { type });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(url);
-    }
-
-    function safeFilename(value) {
-      return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "download";
-    }
-
-    function drawChart(canvas, event) {
-      const ctx = canvas.getContext("2d");
-      const width = canvas.width;
-      const height = canvas.height;
-      const chartType = event.chart_type || "bar";
-
-      ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, width, height);
-      ctx.font = "12px Inter, sans-serif";
-
-      if (chartType === "pie" || chartType === "donut") {
-        drawPieDonutChart(ctx, event, width, height, chartType === "donut");
-        return;
+      function csvCell(value) {
+        const text = String(value ?? "");
+        if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+        return text;
       }
 
-      if (chartType === "scatter") {
-        drawScatterChart(ctx, event, width, height);
-        return;
+      function downloadCanvasPng(canvas, title) {
+        const link = document.createElement("a");
+        link.download = safeFilename(title || "chart") + ".png";
+        link.href = canvas.toDataURL("image/png");
+        link.click();
       }
 
-      if (chartType === "horizontal_bar") {
-        drawHorizontalBarChart(ctx, event, width, height);
-        return;
+      function downloadBlob(content, filename, type) {
+        const blob = new Blob([content], { type });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
       }
 
-      if (chartType === "line") {
-        drawLineChart(ctx, event, width, height);
-        return;
+      function safeFilename(value) {
+        return (
+          String(value)
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "")
+            .slice(0, 80) || "download"
+        );
       }
 
-      drawBarChart(ctx, event, width, height);
-    }
+      function drawChart(canvas, event) {
+        const ctx = canvas.getContext("2d");
+        const width = canvas.width;
+        const height = canvas.height;
+        const chartType = event.chart_type || "bar";
 
-    function drawAxes(ctx, width, height, pad, min, max) {
-      const plotW = width - pad.left - pad.right;
-      const plotH = height - pad.top - pad.bottom;
-      const range = Math.max(max - min, 1);
-      ctx.strokeStyle = "#e5e7eb";
-      ctx.fillStyle = "#6b7280";
-      ctx.lineWidth = 1;
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.font = "12px Inter, sans-serif";
 
-      for (let i = 0; i <= 4; i++) {
-        const y = pad.top + (plotH * i / 4);
-        const value = max - (range * i / 4);
-        ctx.beginPath();
-        ctx.moveTo(pad.left, y);
-        ctx.lineTo(width - pad.right, y);
-        ctx.stroke();
-        ctx.fillText(formatAxisNumber(value), 8, y + 4);
+        if (chartType === "pie" || chartType === "donut") {
+          drawPieDonutChart(ctx, event, width, height, chartType === "donut");
+          return;
+        }
+
+        if (chartType === "scatter") {
+          drawScatterChart(ctx, event, width, height);
+          return;
+        }
+
+        if (chartType === "horizontal_bar") {
+          drawHorizontalBarChart(ctx, event, width, height);
+          return;
+        }
+
+        if (chartType === "line") {
+          drawLineChart(ctx, event, width, height);
+          return;
+        }
+
+        drawBarChart(ctx, event, width, height);
       }
 
-      ctx.strokeStyle = "#cbd5e1";
-      ctx.beginPath();
-      ctx.moveTo(pad.left, pad.top);
-      ctx.lineTo(pad.left, pad.top + plotH);
-      ctx.lineTo(width - pad.right, pad.top + plotH);
-      ctx.stroke();
-      return { plotW, plotH, range };
-    }
-
-    function drawBarChart(ctx, event, width, height) {
-      const labels = event.labels || [];
-      const datasets = event.datasets || [];
-      const values = datasets.flatMap(dataset => dataset.data || []).filter(value => Number.isFinite(Number(value))).map(Number);
-      if (!labels.length || !values.length) return;
-
-      const pad = { top: 18, right: 20, bottom: 62, left: 58 };
-      const max = Math.max(...values, 1);
-      const min = 0;
-      const { plotW, plotH, range } = drawAxes(ctx, width, height, pad, min, max);
-      const gap = 8;
-      const groupW = Math.max(14, (plotW - gap * (labels.length - 1)) / labels.length);
-      const barW = Math.max(5, groupW / Math.max(datasets.length, 1) - 3);
-
-      labels.forEach((label, index) => {
-        datasets.forEach((dataset, datasetIndex) => {
-          const value = Number((dataset.data || [])[index]);
-          if (!Number.isFinite(value)) return;
-          const x = pad.left + index * (groupW + gap) + datasetIndex * (barW + 3);
-          const h = Math.max(1, ((value - min) / range) * plotH);
-          const y = pad.top + plotH - h;
-          ctx.fillStyle = chartColor(datasetIndex);
-          ctx.fillRect(x, y, barW, h);
-        });
-        drawXAxisLabel(ctx, label, pad.left + index * (groupW + gap) + groupW / 2, pad.top + plotH + 18, groupW + gap);
-      });
-    }
-
-    function drawHorizontalBarChart(ctx, event, width, height) {
-      const labels = event.labels || [];
-      const dataset = (event.datasets || [])[0] || {};
-      const values = (dataset.data || []).map(Number).filter(Number.isFinite);
-      if (!labels.length || !values.length) return;
-
-      const pad = { top: 18, right: 34, bottom: 28, left: 132 };
-      const plotW = width - pad.left - pad.right;
-      const plotH = height - pad.top - pad.bottom;
-      const max = Math.max(...values, 1);
-      const barH = Math.max(10, plotH / labels.length - 8);
-
-      ctx.strokeStyle = "#e5e7eb";
-      ctx.fillStyle = "#6b7280";
-      for (let i = 0; i <= 4; i++) {
-        const x = pad.left + plotW * i / 4;
-        ctx.beginPath();
-        ctx.moveTo(x, pad.top);
-        ctx.lineTo(x, pad.top + plotH);
-        ctx.stroke();
-        ctx.fillText(formatAxisNumber(max * i / 4), x - 10, height - 8);
-      }
-
-      labels.forEach((label, index) => {
-        const value = Number((dataset.data || [])[index]);
-        if (!Number.isFinite(value)) return;
-        const y = pad.top + index * (barH + 8);
-        const w = Math.max(1, value / max * plotW);
-        ctx.fillStyle = "#3b82f6";
-        ctx.fillRect(pad.left, y, w, barH);
+      function drawAxes(ctx, width, height, pad, min, max) {
+        const plotW = width - pad.left - pad.right;
+        const plotH = height - pad.top - pad.bottom;
+        const range = Math.max(max - min, 1);
+        ctx.strokeStyle = "#e5e7eb";
         ctx.fillStyle = "#6b7280";
-        ctx.textAlign = "right";
-        ctx.fillText(shortLabel(label, 18), pad.left - 10, y + barH * 0.7);
-      });
-      ctx.textAlign = "left";
-    }
+        ctx.lineWidth = 1;
 
-    function drawLineChart(ctx, event, width, height) {
-      const labels = event.labels || [];
-      const datasets = event.datasets || [];
-      const values = datasets.flatMap(dataset => dataset.data || []).filter(value => Number.isFinite(Number(value))).map(Number);
-      if (!labels.length || !values.length) return;
+        for (let i = 0; i <= 4; i++) {
+          const y = pad.top + (plotH * i) / 4;
+          const value = max - (range * i) / 4;
+          ctx.beginPath();
+          ctx.moveTo(pad.left, y);
+          ctx.lineTo(width - pad.right, y);
+          ctx.stroke();
+          ctx.fillText(formatAxisNumber(value), 8, y + 4);
+        }
 
-      const pad = { top: 18, right: 24, bottom: 62, left: 58 };
-      const max = Math.max(...values, 1);
-      const min = Math.min(...values, 0);
-      const { plotW, plotH, range } = drawAxes(ctx, width, height, pad, min, max);
-
-      datasets.forEach((dataset, datasetIndex) => {
-        ctx.strokeStyle = chartColor(datasetIndex);
-        ctx.fillStyle = chartColor(datasetIndex);
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#cbd5e1";
         ctx.beginPath();
-        let hasStarted = false;
-        labels.forEach((label, index) => {
-          const value = Number((dataset.data || [])[index]);
-          if (!Number.isFinite(value)) return;
-          const x = pad.left + (labels.length === 1 ? plotW / 2 : index * plotW / (labels.length - 1));
-          const y = pad.top + plotH - ((value - min) / range) * plotH;
-          if (!hasStarted) {
-            ctx.moveTo(x, y);
-            hasStarted = true;
-          } else {
-            ctx.lineTo(x, y);
-          }
-        });
+        ctx.moveTo(pad.left, pad.top);
+        ctx.lineTo(pad.left, pad.top + plotH);
+        ctx.lineTo(width - pad.right, pad.top + plotH);
         ctx.stroke();
+        return { plotW, plotH, range };
+      }
+
+      function drawBarChart(ctx, event, width, height) {
+        const labels = event.labels || [];
+        const datasets = event.datasets || [];
+        const values = datasets
+          .flatMap((dataset) => dataset.data || [])
+          .filter((value) => Number.isFinite(Number(value)))
+          .map(Number);
+        if (!labels.length || !values.length) return;
+
+        const pad = { top: 18, right: 20, bottom: 62, left: 58 };
+        const max = Math.max(...values, 1);
+        const min = 0;
+        const { plotW, plotH, range } = drawAxes(
+          ctx,
+          width,
+          height,
+          pad,
+          min,
+          max
+        );
+        const gap = 8;
+        const groupW = Math.max(
+          14,
+          (plotW - gap * (labels.length - 1)) / labels.length
+        );
+        const barW = Math.max(5, groupW / Math.max(datasets.length, 1) - 3);
+
+        labels.forEach((label, index) => {
+          datasets.forEach((dataset, datasetIndex) => {
+            const value = Number((dataset.data || [])[index]);
+            if (!Number.isFinite(value)) return;
+            const x =
+              pad.left + index * (groupW + gap) + datasetIndex * (barW + 3);
+            const h = Math.max(1, ((value - min) / range) * plotH);
+            const y = pad.top + plotH - h;
+            ctx.fillStyle = chartColor(datasetIndex);
+            ctx.fillRect(x, y, barW, h);
+          });
+          drawXAxisLabel(
+            ctx,
+            label,
+            pad.left + index * (groupW + gap) + groupW / 2,
+            pad.top + plotH + 18,
+            groupW + gap
+          );
+        });
+      }
+
+      function drawHorizontalBarChart(ctx, event, width, height) {
+        const labels = event.labels || [];
+        const dataset = (event.datasets || [])[0] || {};
+        const values = (dataset.data || []).map(Number).filter(Number.isFinite);
+        if (!labels.length || !values.length) return;
+
+        const pad = { top: 18, right: 34, bottom: 28, left: 132 };
+        const plotW = width - pad.left - pad.right;
+        const plotH = height - pad.top - pad.bottom;
+        const max = Math.max(...values, 1);
+        const barH = Math.max(10, plotH / labels.length - 8);
+
+        ctx.strokeStyle = "#e5e7eb";
+        ctx.fillStyle = "#6b7280";
+        for (let i = 0; i <= 4; i++) {
+          const x = pad.left + (plotW * i) / 4;
+          ctx.beginPath();
+          ctx.moveTo(x, pad.top);
+          ctx.lineTo(x, pad.top + plotH);
+          ctx.stroke();
+          ctx.fillText(formatAxisNumber((max * i) / 4), x - 10, height - 8);
+        }
+
         labels.forEach((label, index) => {
           const value = Number((dataset.data || [])[index]);
           if (!Number.isFinite(value)) return;
-          const x = pad.left + (labels.length === 1 ? plotW / 2 : index * plotW / (labels.length - 1));
-          const y = pad.top + plotH - ((value - min) / range) * plotH;
+          const y = pad.top + index * (barH + 8);
+          const w = Math.max(1, (value / max) * plotW);
+          ctx.fillStyle = "#3b82f6";
+          ctx.fillRect(pad.left, y, w, barH);
+          ctx.fillStyle = "#6b7280";
+          ctx.textAlign = "right";
+          ctx.fillText(shortLabel(label, 18), pad.left - 10, y + barH * 0.7);
+        });
+        ctx.textAlign = "left";
+      }
+
+      function drawLineChart(ctx, event, width, height) {
+        const labels = event.labels || [];
+        const datasets = event.datasets || [];
+        const values = datasets
+          .flatMap((dataset) => dataset.data || [])
+          .filter((value) => Number.isFinite(Number(value)))
+          .map(Number);
+        if (!labels.length || !values.length) return;
+
+        const pad = { top: 18, right: 24, bottom: 62, left: 58 };
+        const max = Math.max(...values, 1);
+        const min = Math.min(...values, 0);
+        const { plotW, plotH, range } = drawAxes(
+          ctx,
+          width,
+          height,
+          pad,
+          min,
+          max
+        );
+
+        datasets.forEach((dataset, datasetIndex) => {
+          ctx.strokeStyle = chartColor(datasetIndex);
+          ctx.fillStyle = chartColor(datasetIndex);
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          let hasStarted = false;
+          labels.forEach((label, index) => {
+            const value = Number((dataset.data || [])[index]);
+            if (!Number.isFinite(value)) return;
+            const x =
+              pad.left +
+              (labels.length === 1
+                ? plotW / 2
+                : (index * plotW) / (labels.length - 1));
+            const y = pad.top + plotH - ((value - min) / range) * plotH;
+            if (!hasStarted) {
+              ctx.moveTo(x, y);
+              hasStarted = true;
+            } else {
+              ctx.lineTo(x, y);
+            }
+          });
+          ctx.stroke();
+          labels.forEach((label, index) => {
+            const value = Number((dataset.data || [])[index]);
+            if (!Number.isFinite(value)) return;
+            const x =
+              pad.left +
+              (labels.length === 1
+                ? plotW / 2
+                : (index * plotW) / (labels.length - 1));
+            const y = pad.top + plotH - ((value - min) / range) * plotH;
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.fill();
+            if (datasetIndex === 0)
+              drawXAxisLabel(ctx, label, x, pad.top + plotH + 18, 90);
+          });
+        });
+      }
+
+      function drawScatterChart(ctx, event, width, height) {
+        const dataset = (event.datasets || [])[0] || {};
+        const points = dataset.data || [];
+        const xs = points
+          .map((point) => Number(point.x))
+          .filter(Number.isFinite);
+        const ys = points
+          .map((point) => Number(point.y))
+          .filter(Number.isFinite);
+        if (!xs.length || !ys.length) return;
+
+        const pad = { top: 18, right: 24, bottom: 48, left: 68 };
+        const plotW = width - pad.left - pad.right;
+        const plotH = height - pad.top - pad.bottom;
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        const rangeX = Math.max(maxX - minX, 1);
+        const rangeY = Math.max(maxY - minY, 1);
+        drawAxes(ctx, width, height, pad, minY, maxY);
+
+        ctx.fillStyle = "#2563eb";
+        points.forEach((point) => {
+          const xVal = Number(point.x);
+          const yVal = Number(point.y);
+          if (!Number.isFinite(xVal) || !Number.isFinite(yVal)) return;
+          const x = pad.left + ((xVal - minX) / rangeX) * plotW;
+          const y = pad.top + plotH - ((yVal - minY) / rangeY) * plotH;
           ctx.beginPath();
           ctx.arc(x, y, 4, 0, Math.PI * 2);
           ctx.fill();
-          if (datasetIndex === 0) drawXAxisLabel(ctx, label, x, pad.top + plotH + 18, 90);
         });
-      });
-    }
-
-    function drawScatterChart(ctx, event, width, height) {
-      const dataset = (event.datasets || [])[0] || {};
-      const points = dataset.data || [];
-      const xs = points.map(point => Number(point.x)).filter(Number.isFinite);
-      const ys = points.map(point => Number(point.y)).filter(Number.isFinite);
-      if (!xs.length || !ys.length) return;
-
-      const pad = { top: 18, right: 24, bottom: 48, left: 68 };
-      const plotW = width - pad.left - pad.right;
-      const plotH = height - pad.top - pad.bottom;
-      const minX = Math.min(...xs);
-      const maxX = Math.max(...xs);
-      const minY = Math.min(...ys);
-      const maxY = Math.max(...ys);
-      const rangeX = Math.max(maxX - minX, 1);
-      const rangeY = Math.max(maxY - minY, 1);
-      drawAxes(ctx, width, height, pad, minY, maxY);
-
-      ctx.fillStyle = "#2563eb";
-      points.forEach(point => {
-        const xVal = Number(point.x);
-        const yVal = Number(point.y);
-        if (!Number.isFinite(xVal) || !Number.isFinite(yVal)) return;
-        const x = pad.left + ((xVal - minX) / rangeX) * plotW;
-        const y = pad.top + plotH - ((yVal - minY) / rangeY) * plotH;
-        ctx.beginPath();
-        ctx.arc(x, y, 4, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    }
-
-    function drawPieDonutChart(ctx, event, width, height, isDonut) {
-      const labels = event.labels || [];
-      const dataset = (event.datasets || [])[0] || {};
-      const values = (dataset.data || []).map(Number);
-      const total = values.reduce((sum, value) => Number.isFinite(value) ? sum + Math.max(value, 0) : sum, 0);
-      if (!labels.length || total <= 0) return;
-
-      const cx = width * 0.38;
-      const cy = height / 2;
-      const radius = Math.min(height * 0.34, width * 0.26);
-      let start = -Math.PI / 2;
-      values.forEach((value, index) => {
-        if (!Number.isFinite(value) || value <= 0) return;
-        const angle = (value / total) * Math.PI * 2;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.arc(cx, cy, radius, start, start + angle);
-        ctx.closePath();
-        ctx.fillStyle = chartColor(index);
-        ctx.fill();
-        start += angle;
-      });
-
-      if (isDonut) {
-        ctx.beginPath();
-        ctx.fillStyle = "#ffffff";
-        ctx.arc(cx, cy, radius * 0.58, 0, Math.PI * 2);
-        ctx.fill();
       }
 
-      const legendX = width * 0.68;
-      let legendY = 42;
-      labels.slice(0, 10).forEach((label, index) => {
-        ctx.fillStyle = chartColor(index);
-        ctx.fillRect(legendX, legendY - 10, 10, 10);
-        ctx.fillStyle = "#374151";
-        ctx.fillText(`${shortLabel(label, 24)} (${formatAxisNumber(values[index] || 0)})`, legendX + 16, legendY);
-        legendY += 20;
-      });
-    }
+      function drawPieDonutChart(ctx, event, width, height, isDonut) {
+        const labels = event.labels || [];
+        const dataset = (event.datasets || [])[0] || {};
+        const values = (dataset.data || []).map(Number);
+        const total = values.reduce(
+          (sum, value) =>
+            Number.isFinite(value) ? sum + Math.max(value, 0) : sum,
+          0
+        );
+        if (!labels.length || total <= 0) return;
 
-    function drawXAxisLabel(ctx, label, x, y, maxWidth) {
-      const text = String(label ?? "");
-      const shortened = text.length > 18 ? text.slice(0, 15) + "..." : text;
-      ctx.save();
-      ctx.fillStyle = "#6b7280";
-      ctx.textAlign = "center";
-      ctx.translate(x, y);
-      ctx.rotate(-Math.PI / 7);
-      ctx.fillText(shortened, 0, 0, maxWidth);
-      ctx.restore();
-    }
-
-    function formatAxisNumber(value) {
-      if (Math.abs(value) >= 1000000000) return (value / 1000000000).toFixed(1) + "B";
-      if (Math.abs(value) >= 1000000) return (value / 1000000).toFixed(1) + "M";
-      if (Math.abs(value) >= 1000) return (value / 1000).toFixed(1) + "K";
-      return Number(value).toFixed(value % 1 === 0 ? 0 : 1);
-    }
-
-    function shortLabel(value, maxLength) {
-      const text = String(value ?? "");
-      return text.length > maxLength ? text.slice(0, maxLength - 3) + "..." : text;
-    }
-
-    function chartColor(index) {
-      const colors = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#64748b"];
-      return colors[index % colors.length];
-    }
-
-    function setUIMode(mode) {
-      if (mode === 'hero') {
-        document.body.classList.remove('mode-chat');
-        document.body.classList.add('mode-hero');
-      } else {
-        document.body.classList.remove('mode-hero');
-        document.body.classList.add('mode-chat');
-      }
-    }
-
-    // Main Function to submit user message to server & update UI
-    async function sendQuery(text) {
-      const trimmed = text.trim();
-      if (!trimmed) return;
-
-      // Switch UI to chat view
-      setUIMode('chat');
-
-      addMsg("user", trimmed);
-      input.value = "";
-      sendBtn.disabled = true;
-
-      const typingEl = addTypingIndicator();
-      let botBubble = null;
-
-      try {
-        const res = await fetch("/api/chat/stream", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: sessionId, message: trimmed })
+        const cx = width * 0.38;
+        const cy = height / 2;
+        const radius = Math.min(height * 0.34, width * 0.26);
+        let start = -Math.PI / 2;
+        values.forEach((value, index) => {
+          if (!Number.isFinite(value) || value <= 0) return;
+          const angle = (value / total) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.arc(cx, cy, radius, start, start + angle);
+          ctx.closePath();
+          ctx.fillStyle = chartColor(index);
+          ctx.fill();
+          start += angle;
         });
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
+        if (isDonut) {
+          ctx.beginPath();
+          ctx.fillStyle = "#ffffff";
+          ctx.arc(cx, cy, radius * 0.58, 0, Math.PI * 2);
+          ctx.fill();
+        }
 
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+        const legendX = width * 0.68;
+        let legendY = 42;
+        labels.slice(0, 10).forEach((label, index) => {
+          ctx.fillStyle = chartColor(index);
+          ctx.fillRect(legendX, legendY - 10, 10, 10);
+          ctx.fillStyle = "#374151";
+          ctx.fillText(
+            `${shortLabel(label, 24)} (${formatAxisNumber(values[index] || 0)})`,
+            legendX + 16,
+            legendY
+          );
+          legendY += 20;
+        });
+      }
 
-          const parts = buffer.split("\n\n");
-          buffer = parts.pop();
+      function drawXAxisLabel(ctx, label, x, y, maxWidth) {
+        const text = String(label ?? "");
+        const shortened = text.length > 18 ? text.slice(0, 15) + "..." : text;
+        ctx.save();
+        ctx.fillStyle = "#6b7280";
+        ctx.textAlign = "center";
+        ctx.translate(x, y);
+        ctx.rotate(-Math.PI / 7);
+        ctx.fillText(shortened, 0, 0, maxWidth);
+        ctx.restore();
+      }
 
-          for (const part of parts) {
-            const line = part.trim();
-            if (!line.startsWith("data:")) continue;
-            const payload = line.slice(5).trim();
-            if (payload === "[DONE]") continue;
+      function formatAxisNumber(value) {
+        if (Math.abs(value) >= 1000000000)
+          return (value / 1000000000).toFixed(1) + "B";
+        if (Math.abs(value) >= 1000000)
+          return (value / 1000000).toFixed(1) + "M";
+        if (Math.abs(value) >= 1000) return (value / 1000).toFixed(1) + "K";
+        return Number(value).toFixed(value % 1 === 0 ? 0 : 1);
+      }
 
-            let event;
-            try { event = JSON.parse(payload); } catch { continue; }
+      function shortLabel(value, maxLength) {
+        const text = String(value ?? "");
+        return text.length > maxLength
+          ? text.slice(0, maxLength - 3) + "..."
+          : text;
+      }
 
-            if (event.type === "tool") {
-              if (typingEl.parentNode) typingEl.remove();
-              addTrace(event);
-            } else if (event.type === "table") {
-              if (typingEl.parentNode) typingEl.remove();
-              addTableArtifact(event);
-            } else if (event.type === "chart") {
-              if (typingEl.parentNode) typingEl.remove();
-              addChartArtifact(event);
-            } else if (event.type === "diagram") {
-              if (typingEl.parentNode) typingEl.remove();
-              addDiagramArtifact(event);
-            } else if (event.type === "token") {
-              if (typingEl.parentNode) typingEl.remove();
-              if (!botBubble) botBubble = addMsg("bot", "");
-              appendToken(botBubble, event.text);
-            } else if (event.type === "error") {
-              if (typingEl.parentNode) typingEl.remove();
-              addMsg("bot", "Error: " + event.message);
+      function chartColor(index) {
+        const colors = [
+          "#3b82f6",
+          "#22c55e",
+          "#f59e0b",
+          "#ef4444",
+          "#8b5cf6",
+          "#14b8a6",
+          "#f97316",
+          "#64748b"
+        ];
+        return colors[index % colors.length];
+      }
+
+      function setUIMode(mode) {
+        if (mode === "hero") {
+          document.body.classList.remove("mode-chat");
+          document.body.classList.add("mode-hero");
+        } else {
+          document.body.classList.remove("mode-hero");
+          document.body.classList.add("mode-chat");
+        }
+      }
+
+      // Main Function to submit user message to server & update UI
+      async function sendQuery(text) {
+        const trimmed = text.trim();
+        if (!trimmed) return;
+
+        // Switch UI to chat view
+        setUIMode("chat");
+
+        addMsg("user", trimmed);
+        input.value = "";
+        sendBtn.disabled = true;
+
+        const typingEl = addTypingIndicator();
+        let botBubble = null;
+
+        try {
+          const res = await fetch("/api/chat/stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_id: sessionId, message: trimmed })
+          });
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop();
+
+            for (const part of parts) {
+              const line = part.trim();
+              if (!line.startsWith("data:")) continue;
+              const payload = line.slice(5).trim();
+              if (payload === "[DONE]") continue;
+
+              let event;
+              try {
+                event = JSON.parse(payload);
+              } catch {
+                continue;
+              }
+
+              if (event.type === "tool") {
+                if (typingEl.parentNode) typingEl.remove();
+                addTrace(event);
+              } else if (event.type === "table") {
+                if (typingEl.parentNode) typingEl.remove();
+                addTableArtifact(event);
+              } else if (event.type === "chart") {
+                if (typingEl.parentNode) typingEl.remove();
+                addChartArtifact(event);
+              } else if (event.type === "dashboard") {
+                if (typingEl.parentNode) typingEl.remove();
+                addDashboardArtifact(event);
+              } else if (event.type === "diagram") {
+                if (typingEl.parentNode) typingEl.remove();
+                addDiagramArtifact(event);
+              } else if (event.type === "token") {
+                if (typingEl.parentNode) typingEl.remove();
+                if (!botBubble) botBubble = addMsg("bot", "");
+                appendToken(botBubble, event.text);
+              } else if (event.type === "error") {
+                if (typingEl.parentNode) typingEl.remove();
+                addMsg("bot", "Error: " + event.message);
+              }
             }
           }
+        } catch (e) {
+          if (typingEl.parentNode) typingEl.remove();
+          addMsg("bot", "Error: " + e.message);
+        } finally {
+          sendBtn.disabled = false;
+          // Reset voice state to listen for wake word again
+          resetVoiceStateToIdle();
         }
-      } catch (e) {
-        if (typingEl.parentNode) typingEl.remove();
-        addMsg("bot", "Error: " + e.message);
-      } finally {
-        sendBtn.disabled = false;
-        // Reset voice state to listen for wake word again
-        resetVoiceStateToIdle();
       }
-    }
 
-    sendBtn.addEventListener("click", () => sendQuery(input.value));
-    input.addEventListener("keydown", e => { if (e.key === "Enter") sendQuery(input.value); });
-
-    backBtn.addEventListener("click", () => {
-      setUIMode('hero');
-      resetVoiceStateToIdle();
-    });
-
-    resetBtn.addEventListener("click", async () => {
-      await fetch("/api/reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId })
+      sendBtn.addEventListener("click", () => sendQuery(input.value));
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") sendQuery(input.value);
       });
-      chatContainer.innerHTML = "";
-      setUIMode('hero');
-      resetVoiceStateToIdle();
-    });
 
-    // -------------------------------------------------------------
-    // WEB SPEECH RECOGNITION & WAKE WORD ("alfa") LOGIC
-    // -------------------------------------------------------------
+      backBtn.addEventListener("click", () => {
+        setUIMode("hero");
+        resetVoiceStateToIdle();
+      });
 
-    function resetVoiceStateToIdle() {
-      currentVoiceMode = 'IDLE_WAITING_WAKEWORD';
-      finalQueryText = '';
-      if (silenceTimer) clearTimeout(silenceTimer);
-      silenceTimer = null;
+      resetBtn.addEventListener("click", async () => {
+        await fetch("/api/reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId })
+        });
+        chatContainer.innerHTML = "";
+        setUIMode("hero");
+        resetVoiceStateToIdle();
+      });
 
-      heroText.classList.add("placeholder");
-      heroText.textContent = 'Say "Alfa" to start';
-      statusPillText.textContent = 'Say "Alfa" to start • Auto search is on';
-      headerMicBadge.className = "mic-badge listening";
-      bottomMicBtn.classList.remove("active");
-      heroWaveform.classList.remove("active");
-      input.value = '';
-      input.placeholder = "Ask something or say 'Alfa'...";
+      // -------------------------------------------------------------
+      // WEB SPEECH RECOGNITION & WAKE WORD ("alfa") LOGIC
+      // -------------------------------------------------------------
 
-      // Re-instantiate speech recognition afresh for the next turn
-      restartSpeechRecognition();
-    }
+      function resetVoiceStateToIdle() {
+        currentVoiceMode = "IDLE_WAITING_WAKEWORD";
+        finalQueryText = "";
+        if (silenceTimer) clearTimeout(silenceTimer);
+        silenceTimer = null;
 
-    function restartSpeechRecognition() {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-      if (!SpeechRecognition) {
-        statusPillText.textContent = 'Web Speech API not supported in this browser. Please type below.';
-        headerMicBadge.className = "mic-badge off";
-        heroWaveform.classList.remove("active");
-        heroText.textContent = "Voice input unavailable";
-        return;
-      }
-
-      // Detach handlers and abort existing recognition session if running
-      if (speechRecognition) {
-        speechRecognition.onstart = null;
-        speechRecognition.onresult = null;
-        speechRecognition.onerror = null;
-        speechRecognition.onend = null;
-        try { speechRecognition.abort(); } catch (err) { }
-      }
-
-      speechRecognition = new SpeechRecognition();
-      speechRecognition.continuous = true;
-      speechRecognition.interimResults = true;
-      speechRecognition.lang = 'en-US';
-
-      speechRecognition.onstart = () => {
+        heroText.classList.add("placeholder");
+        heroText.textContent = 'Say "Alfa" to start';
+        statusPillText.textContent = 'Say "Alfa" to start • Auto search is on';
         headerMicBadge.className = "mic-badge listening";
-        if (currentVoiceMode === 'LISTENING_QUERY') {
-          heroWaveform.classList.add("active");
-          bottomMicBtn.classList.add("active");
-        } else {
+        bottomMicBtn.classList.remove("active");
+        heroWaveform.classList.remove("active");
+        input.value = "";
+        input.placeholder = "Ask something or say 'Alfa'...";
+
+        // Re-instantiate speech recognition afresh for the next turn
+        restartSpeechRecognition();
+      }
+
+      function restartSpeechRecognition() {
+        const SpeechRecognition =
+          window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+          statusPillText.textContent =
+            "Web Speech API not supported in this browser. Please type below.";
+          headerMicBadge.className = "mic-badge off";
           heroWaveform.classList.remove("active");
-          bottomMicBtn.classList.remove("active");
-        }
-      };
-
-      speechRecognition.onresult = (event) => {
-        let fullTranscript = '';
-
-        // Accumulate transcript sequence for the current active recognition session
-        for (let i = 0; i < event.results.length; ++i) {
-          fullTranscript += event.results[i][0].transcript + ' ';
+          heroText.textContent = "Voice input unavailable";
+          return;
         }
 
-        const rawSpokenText = fullTranscript.trim();
-        const match = rawSpokenText.match(wakeWordRegex);
+        // Detach handlers and abort existing recognition session if running
+        if (speechRecognition) {
+          speechRecognition.onstart = null;
+          speechRecognition.onresult = null;
+          speechRecognition.onerror = null;
+          speechRecognition.onend = null;
+          try {
+            speechRecognition.abort();
+          } catch (err) {}
+        }
 
-        // 1. WAKE WORD DETECTION (IDLE MODE)
-        if (currentVoiceMode === 'IDLE_WAITING_WAKEWORD') {
-          if (match) {
-            currentVoiceMode = 'LISTENING_QUERY';
-            setUIMode('hero');
+        speechRecognition = new SpeechRecognition();
+        speechRecognition.continuous = true;
+        speechRecognition.interimResults = true;
+        speechRecognition.lang = "en-US";
+
+        speechRecognition.onstart = () => {
+          headerMicBadge.className = "mic-badge listening";
+          if (currentVoiceMode === "LISTENING_QUERY") {
             heroWaveform.classList.add("active");
             bottomMicBtn.classList.add("active");
-            statusPillText.textContent = 'Wake word "Alfa" detected • Listening...';
-            heroText.classList.remove("placeholder");
+          } else {
+            heroWaveform.classList.remove("active");
+            bottomMicBtn.classList.remove("active");
+          }
+        };
 
-            // Extract everything spoken after the wake word
-            const wakeIndex = match.index;
-            let textAfterWake = rawSpokenText.slice(wakeIndex + match[0].length).replace(/^[,\s\-.:]+/, '').trim();
+        speechRecognition.onresult = (event) => {
+          let fullTranscript = "";
 
-            if (textAfterWake) {
-              finalQueryText = textAfterWake;
+          // Accumulate transcript sequence for the current active recognition session
+          for (let i = 0; i < event.results.length; ++i) {
+            fullTranscript += event.results[i][0].transcript + " ";
+          }
+
+          const rawSpokenText = fullTranscript.trim();
+          const match = rawSpokenText.match(wakeWordRegex);
+
+          // 1. WAKE WORD DETECTION (IDLE MODE)
+          if (currentVoiceMode === "IDLE_WAITING_WAKEWORD") {
+            if (match) {
+              currentVoiceMode = "LISTENING_QUERY";
+              setUIMode("hero");
+              heroWaveform.classList.add("active");
+              bottomMicBtn.classList.add("active");
+              statusPillText.textContent =
+                'Wake word "Alfa" detected • Listening...';
+              heroText.classList.remove("placeholder");
+
+              // Extract everything spoken after the wake word
+              const wakeIndex = match.index;
+              let textAfterWake = rawSpokenText
+                .slice(wakeIndex + match[0].length)
+                .replace(/^[,\s\-.:]+/, "")
+                .trim();
+
+              if (textAfterWake) {
+                finalQueryText = textAfterWake;
+                heroText.textContent = finalQueryText;
+                input.value = finalQueryText;
+                scheduleSilenceEnd();
+              } else {
+                finalQueryText = "";
+                heroText.textContent = "Listening...";
+                input.value = "";
+                input.placeholder = "Listening...";
+              }
+            } else {
+              // Spoken text without wake word yet - stay in idle mode
+              heroText.classList.add("placeholder");
+              heroText.textContent = 'Say "Alfa" to start';
+              heroWaveform.classList.remove("active");
+              bottomMicBtn.classList.remove("active");
+              if (currentVoiceMode === "IDLE_WAITING_WAKEWORD") {
+                input.placeholder = "Ask something or say 'Alfa'...";
+              }
+            }
+          }
+          // 2. ACTIVE QUERY LISTENING MODE
+          else if (currentVoiceMode === "LISTENING_QUERY") {
+            setUIMode("hero");
+            heroWaveform.classList.add("active");
+            bottomMicBtn.classList.add("active");
+
+            let queryPart = rawSpokenText;
+            if (match) {
+              queryPart = rawSpokenText
+                .slice(match.index + match[0].length)
+                .replace(/^[,\s\-.:]+/, "")
+                .trim();
+            }
+
+            if (queryPart) {
+              finalQueryText = queryPart;
+              heroText.classList.remove("placeholder");
               heroText.textContent = finalQueryText;
               input.value = finalQueryText;
               scheduleSilenceEnd();
             } else {
-              finalQueryText = '';
-              heroText.textContent = 'Listening...';
-              input.value = '';
-              input.placeholder = 'Listening...';
-            }
-          } else {
-            // Spoken text without wake word yet - stay in idle mode
-            heroText.classList.add("placeholder");
-            heroText.textContent = 'Say "Alfa" to start';
-            heroWaveform.classList.remove("active");
-            bottomMicBtn.classList.remove("active");
-            if (currentVoiceMode === 'IDLE_WAITING_WAKEWORD') {
-              input.placeholder = "Ask something or say 'Alfa'...";
+              heroText.textContent = "Listening...";
+              if (!input.value) {
+                input.placeholder = "Listening...";
+              }
             }
           }
+        };
+
+        speechRecognition.onerror = (e) => {
+          if (e.error !== "no-speech") {
+            console.warn("Speech recognition error:", e.error);
+          }
+        };
+
+        speechRecognition.onend = () => {
+          // Automatically restart speech recognition if it unexpectedly drops while not submitting
+          if (currentVoiceMode !== "SUBMITTING") {
+            try {
+              speechRecognition.start();
+            } catch (err) {}
+          }
+        };
+
+        // Start fresh listening
+        try {
+          speechRecognition.start();
+        } catch (err) {
+          console.error("Could not start speech recognition:", err);
         }
-        // 2. ACTIVE QUERY LISTENING MODE
-        else if (currentVoiceMode === 'LISTENING_QUERY') {
-          setUIMode('hero');
+      }
+
+      // Dynamic ending condition: 2.5s of silence after speech input finishes
+      function scheduleSilenceEnd() {
+        if (silenceTimer) clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => {
+          if (currentVoiceMode === "LISTENING_QUERY" && finalQueryText.trim()) {
+            triggerVoiceSubmit();
+          }
+        }, 2500); // 2.5 seconds silence timeout
+      }
+
+      function triggerVoiceSubmit() {
+        if (!finalQueryText.trim()) return;
+        currentVoiceMode = "SUBMITTING";
+        if (silenceTimer) clearTimeout(silenceTimer);
+        silenceTimer = null;
+
+        const textToSend = finalQueryText.trim();
+
+        // Detach event handlers and abort current recognition session during submission
+        if (speechRecognition) {
+          speechRecognition.onend = null;
+          try {
+            speechRecognition.abort();
+          } catch (err) {}
+        }
+
+        sendQuery(textToSend);
+      }
+
+      // Toggle active listening mode on clicking mic button or waveform container
+      function toggleActiveListening(e) {
+        if (currentVoiceMode === "LISTENING_QUERY") {
+          if (finalQueryText.trim()) {
+            triggerVoiceSubmit();
+          } else {
+            // Cancel/stop listening and return cleanly to idle wake word mode
+            resetVoiceStateToIdle();
+          }
+        } else {
+          currentVoiceMode = "LISTENING_QUERY";
+          setUIMode("hero");
           heroWaveform.classList.add("active");
           bottomMicBtn.classList.add("active");
-
-          let queryPart = rawSpokenText;
-          if (match) {
-            queryPart = rawSpokenText.slice(match.index + match[0].length).replace(/^[,\s\-.:]+/, '').trim();
-          }
-
-          if (queryPart) {
-            finalQueryText = queryPart;
-            heroText.classList.remove("placeholder");
-            heroText.textContent = finalQueryText;
-            input.value = finalQueryText;
-            scheduleSilenceEnd();
-          } else {
-            heroText.textContent = 'Listening...';
-            if (!input.value) {
-              input.placeholder = 'Listening...';
-            }
-          }
+          heroText.classList.remove("placeholder");
+          heroText.textContent = "Listening...";
+          input.value = "";
+          input.placeholder = "Listening...";
+          statusPillText.textContent = "Listening for your voice query...";
         }
-      };
-
-      speechRecognition.onerror = (e) => {
-        if (e.error !== 'no-speech') {
-          console.warn("Speech recognition error:", e.error);
-        }
-      };
-
-      speechRecognition.onend = () => {
-        // Automatically restart speech recognition if it unexpectedly drops while not submitting
-        if (currentVoiceMode !== 'SUBMITTING') {
-          try {
-            speechRecognition.start();
-          } catch (err) { }
-        }
-      };
-
-      // Start fresh listening
-      try {
-        speechRecognition.start();
-      } catch (err) {
-        console.error("Could not start speech recognition:", err);
-      }
-    }
-
-    // Dynamic ending condition: 2.5s of silence after speech input finishes
-    function scheduleSilenceEnd() {
-      if (silenceTimer) clearTimeout(silenceTimer);
-      silenceTimer = setTimeout(() => {
-        if (currentVoiceMode === 'LISTENING_QUERY' && finalQueryText.trim()) {
-          triggerVoiceSubmit();
-        }
-      }, 2500); // 2.5 seconds silence timeout
-    }
-
-    function triggerVoiceSubmit() {
-      if (!finalQueryText.trim()) return;
-      currentVoiceMode = 'SUBMITTING';
-      if (silenceTimer) clearTimeout(silenceTimer);
-      silenceTimer = null;
-
-      const textToSend = finalQueryText.trim();
-
-      // Detach event handlers and abort current recognition session during submission
-      if (speechRecognition) {
-        speechRecognition.onend = null;
-        try { speechRecognition.abort(); } catch (err) { }
       }
 
-      sendQuery(textToSend);
-    }
+      bottomMicBtn.addEventListener("click", toggleActiveListening);
+      heroWaveform.addEventListener("click", toggleActiveListening);
 
-    // Toggle active listening mode on clicking mic button or waveform container
-    function toggleActiveListening(e) {
-      if (currentVoiceMode === 'LISTENING_QUERY') {
-        if (finalQueryText.trim()) {
-          triggerVoiceSubmit();
-        } else {
-          // Cancel/stop listening and return cleanly to idle wake word mode
-          resetVoiceStateToIdle();
-        }
-      } else {
-        currentVoiceMode = 'LISTENING_QUERY';
-        setUIMode('hero');
-        heroWaveform.classList.add("active");
-        bottomMicBtn.classList.add("active");
-        heroText.classList.remove("placeholder");
-        heroText.textContent = "Listening...";
-        input.value = "";
-        input.placeholder = "Listening...";
-        statusPillText.textContent = "Listening for your voice query...";
-      }
-    }
-
-    bottomMicBtn.addEventListener("click", toggleActiveListening);
-    heroWaveform.addEventListener("click", toggleActiveListening);
-
-    // Initialize on page load
-    window.addEventListener("DOMContentLoaded", () => {
-      resetVoiceStateToIdle();
-    });
-  </script>
-</body>
-
+      // Initialize on page load
+      window.addEventListener("DOMContentLoaded", () => {
+        resetVoiceStateToIdle();
+      });
+    </script>
+  </body>
 </html>

@@ -174,6 +174,26 @@ def render_chart(
     })
 
 
+def render_dashboard(
+    title: str = "",
+    kpis: list | None = None,
+    charts: list | None = None,
+    insights: list | None = None,
+) -> str:
+    """Render a structured dashboard with KPI cards, multi-chart analytics, and
+    concise insights for requests such as deep analytics, executive summaries,
+    trend breakdowns, or multi-chart reports. Use this after collecting real data
+    from SQL tools or other verified tool outputs."""
+    payload = {
+        "result": "Dashboard rendered.",
+        "title": title or "Analytics dashboard",
+        "kpis": kpis or [],
+        "charts": charts or [],
+        "insights": insights or [],
+    }
+    return json.dumps(payload)
+
+
 TOOL_DISPATCH = {
     "sql_query":          sql_query,
     "get_schema":         get_schema,
@@ -182,6 +202,7 @@ TOOL_DISPATCH = {
     "get_client_orr":     get_client_orr,
     "calculator":         calculator,
     "render_chart":       render_chart,
+    "render_dashboard":   render_dashboard,
     "get_current_datetime": get_current_datetime,
 }
 
@@ -294,6 +315,35 @@ TOOL_SCHEMAS = [
                     "series": {"type": "string", "description": "Optional grouping column for multi-series bar/line charts."}
                 },
                 "required": ["chart_type", "title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "render_dashboard",
+            "description": render_dashboard.__doc__.strip(),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Short dashboard title."},
+                    "kpis": {
+                        "type": "array",
+                        "description": "Optional KPI cards such as {'label': 'Total clients', 'value': 1250}",
+                        "items": {"type": "object"},
+                    },
+                    "charts": {
+                        "type": "array",
+                        "description": "List of chart objects, each with chart_type, title, labels, datasets, and optional source_columns.",
+                        "items": {"type": "object"},
+                    },
+                    "insights": {
+                        "type": "array",
+                        "description": "Short text insights based on the verified data.",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["title"],
             },
         },
     },

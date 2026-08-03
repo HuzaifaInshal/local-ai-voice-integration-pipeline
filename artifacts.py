@@ -39,6 +39,10 @@ def build_artifacts(
         chart = _build_requested_chart(session_id, args)
         return [chart] if chart else []
 
+    if tool_name == "render_dashboard":
+        dashboard = _build_dashboard_artifact(session_id, args)
+        return [dashboard] if dashboard else []
+
     rows = _extract_rows(result_text)
     if not rows:
         return []
@@ -164,6 +168,42 @@ def _title_from_query(query: str) -> str:
     return compact[:87].rstrip() + "..."
 
 
+def _build_dashboard_artifact(session_id: str, args: dict[str, Any]) -> dict[str, Any] | None:
+    title = str(args.get("title") or "Analytics dashboard").strip() or "Analytics dashboard"
+    kpis = args.get("kpis") or []
+    chart_specs = args.get("charts") or []
+    insights = args.get("insights") or []
+
+    state = SESSION_RESULTS.get(session_id)
+    rows = (state or {}).get("rows") or []
+    columns = (state or {}).get("columns") or []
+    charts = []
+
+    for chart_spec in chart_specs:
+        if not isinstance(chart_spec, dict):
+            continue
+        if chart_spec.get("labels") is not None or chart_spec.get("datasets") is not None:
+            chart_payload = dict(chart_spec)
+            chart_payload.setdefault("type", "chart")
+            chart_payload.setdefault("title", title)
+            charts.append(chart_payload)
+            continue
+        chart_payload = _build_chart_from_rows(rows, columns, str(chart_spec.get("title") or title), chart_spec)
+        if chart_payload:
+            charts.append(chart_payload)
+
+    if not charts and not kpis and not insights:
+        return None
+
+    return {
+        "type": "dashboard",
+        "title": title,
+        "kpis": list(kpis) if isinstance(kpis, list) else [],
+        "charts": charts,
+        "insights": list(insights) if isinstance(insights, list) else [],
+    }
+
+
 def _build_requested_chart(session_id: str, args: dict[str, Any]) -> dict[str, Any] | None:
     state = SESSION_RESULTS.get(session_id)
     if not state:
@@ -174,16 +214,24 @@ def _build_requested_chart(session_id: str, args: dict[str, Any]) -> dict[str, A
     if not rows or not columns:
         return None
 
+    title = str(args.get("title") or state.get("title") or "Chart")
+    return _build_chart_from_rows(rows, columns, title, args)
+
+
+def _build_chart_from_rows(rows: list[dict[str, Any]], columns: list[str], title: str, args: dict[str, Any]) -> dict[str, Any] | None:
     chart_type = str(args.get("chart_type", "")).strip().lower()
     if chart_type not in CHART_TYPES:
         return None
 
-    title = str(args.get("title") or state.get("title") or "Chart")
     chart_rows = rows[:MAX_CHART_ROWS]
 
     if chart_type in {"donut", "pie"}:
         label_col = _first_present(columns, args.get("label"), args.get("x"))
         value_col = _first_present(columns, args.get("value"), args.get("y"))
+        if not label_col or not value_col:
+            inferred = _infer_label_and_value_columns(columns, chart_rows)
+            label_col = label_col or inferred[0]
+            value_col = value_col or inferred[1]
         if not label_col or not value_col or not _is_numeric_column(value_col, chart_rows):
             return None
         labels = []
@@ -209,6 +257,10 @@ def _build_requested_chart(session_id: str, args: dict[str, Any]) -> dict[str, A
         x_col = _first_present(columns, args.get("x"))
         y_col = _first_present(columns, args.get("y"))
         label_col = _first_present(columns, args.get("label"))
+        if not x_col or not y_col:
+            inferred = _infer_scatter_columns(columns, chart_rows)
+            x_col = x_col or inferred[0]
+            y_col = y_col or inferred[1]
         if not x_col or not y_col or not _is_numeric_column(x_col, chart_rows) or not _is_numeric_column(y_col, chart_rows):
             return None
         points = []
@@ -234,6 +286,10 @@ def _build_requested_chart(session_id: str, args: dict[str, Any]) -> dict[str, A
     x_col = _first_present(columns, args.get("x"), args.get("label"))
     y_col = _first_present(columns, args.get("y"), args.get("value"))
     series_col = _first_present(columns, args.get("series"))
+    if not x_col or not y_col:
+        inferred = _infer_axis_columns(columns, chart_rows)
+        x_col = x_col or inferred[0]
+        y_col = y_col or inferred[1]
     if not x_col or not y_col or not _is_numeric_column(y_col, chart_rows):
         return None
 
@@ -289,6 +345,33 @@ def _first_present(columns: list[str], *candidates: Any) -> str | None:
         if lowered in normalized:
             return normalized[lowered]
     return None
+
+
+def _infer_label_and_value_columns(columns: list[str], rows: list[dict[str, Any]]) -> tuple[str | None, str | None]:
+    non_numeric = [col for col in columns if not _is_numeric_column(col, rows)]
+    numeric = [col for col in columns if _is_numeric_column(col, rows)]
+    label_col = non_numeric[0] if non_numeric else (columns[0] if columns else None)
+    value_col = numeric[0] if numeric else None
+    return label_col, value_col
+
+
+def _infer_scatter_columns(columns: list[str], rows: list[dict[str, Any]]) -> tuple[str | None, str | None]:
+    numeric_cols = [col for col in columns if _is_numeric_column(col, rows)]
+    if len(numeric_cols) >= 2:
+        return numeric_cols[0], numeric_cols[1]
+    return None, None
+
+
+def _infer_axis_columns(columns: list[str], rows: list[dict[str, Any]]) -> tuple[str | None, str | None]:
+    non_numeric = [col for col in columns if not _is_numeric_column(col, rows)]
+    numeric = [col for col in columns if _is_numeric_column(col, rows)]
+    if non_numeric and numeric:
+        return non_numeric[0], numeric[0]
+    if len(numeric) >= 2:
+        return numeric[0], numeric[1]
+    if numeric:
+        return numeric[0], numeric[0]
+    return (columns[0] if columns else None), None
 
 
 def _unique_labels(values) -> list[str]:
