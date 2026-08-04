@@ -30,9 +30,9 @@ from db_setup import build_database
 # ---------------------------------------------------------------
 # MODEL CONFIGURATION FOR LLAMA.CPP ON 2x TESLA T4
 # ---------------------------------------------------------------
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-14B-Instruct-GGUF")
-MODEL_REPO = os.environ.get("MODEL_REPO", "Qwen/Qwen2.5-14B-Instruct-GGUF")
-MODEL_FILE = os.environ.get("MODEL_FILE", "qwen2.5-14b-instruct-q4_k_m.gguf")
+MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-14B")
+MODEL_REPO = os.environ.get("MODEL_REPO", "bartowski/Qwen_Qwen3-14B-GGUF")
+MODEL_FILE = os.environ.get("MODEL_FILE", "Qwen_Qwen3-14B-Q4_K_M.gguf")
 
 LLM_PORT = 8000
 APP_PORT = 8080

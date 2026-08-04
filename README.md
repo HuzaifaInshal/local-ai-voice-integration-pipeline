@@ -34,11 +34,11 @@ To resolve vLLM PCIe and CPU bottlenecks on Kaggle 2x T4 GPUs (5–9 tokens/sec)
 - **Server Engine**: `llama.cpp` (`llama-cpp-python` / `llama-server`) with multi-GPU layer offloading (`-ngl 99`).
 - **Context Window**: 8192 tokens (8k context).
 - **KV Cache Quantization**: 8-bit (`q8_0`) KV cache (`--cache-type-k q8_0 --cache-type-v q8_0`).
-- **Default GGUF Model**: `Qwen/Qwen2.5-14B-Instruct-GGUF` (`qwen2.5-14b-instruct-q4_k_m.gguf`), auto-downloaded on launch.
+- **Default GGUF Model**: `Qwen/Qwen3-14B` (`bartowski/Qwen_Qwen3-14B-GGUF` file `Qwen_Qwen3-14B-Q4_K_M.gguf`), auto-downloaded on launch.
 
 Custom model override via environment variables:
 ```bash
-MODEL_REPO="Qwen/Qwen2.5-14B-Instruct-GGUF" MODEL_FILE="qwen2.5-14b-instruct-q4_k_m.gguf" python main.py
+MODEL_REPO="bartowski/Qwen_Qwen3-14B-GGUF" MODEL_FILE="Qwen_Qwen3-14B-Q4_K_M.gguf" python main.py
 ```
 
 ## Why this shouldn't hallucinate the way your Qwen2.5 setup did
