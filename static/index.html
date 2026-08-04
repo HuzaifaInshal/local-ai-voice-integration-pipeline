@@ -1423,6 +1423,23 @@
         return normalized;
       }
 
+      function hasRenderableChartData(event) {
+        const datasets = Array.isArray(event?.datasets) ? event.datasets : [];
+        if (!datasets.length) return false;
+
+        return datasets.some((dataset) => {
+          const data = Array.isArray(dataset?.data) ? dataset.data : [];
+          return data.some((value) => {
+            if (typeof value === "number") return Number.isFinite(value);
+            if (typeof value === "string") {
+              const parsed = Number(value);
+              return Number.isFinite(parsed);
+            }
+            return false;
+          });
+        });
+      }
+
       function drawChart(canvas, event) {
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
@@ -1438,6 +1455,19 @@
         ctx.strokeStyle = "#e5e7eb";
         ctx.strokeRect(1, 1, width - 2, height - 2);
         ctx.font = "12px Inter, sans-serif";
+
+        if (!hasRenderableChartData(normalizedEvent)) {
+          ctx.fillStyle = "#6b7280";
+          ctx.font = "13px Inter, sans-serif";
+          ctx.fillText("Chart data unavailable", 18, 32);
+          ctx.font = "12px Inter, sans-serif";
+          ctx.fillText(
+            "The model returned a non-numeric chart payload.",
+            18,
+            54
+          );
+          return;
+        }
 
         if (chartType === "pie" || chartType === "donut") {
           drawPieDonutChart(

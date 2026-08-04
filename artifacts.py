@@ -182,13 +182,16 @@ def _build_dashboard_artifact(session_id: str, args: dict[str, Any]) -> dict[str
     for chart_spec in chart_specs:
         if not isinstance(chart_spec, dict):
             continue
-        if chart_spec.get("labels") is not None or chart_spec.get("datasets") is not None:
-            chart_payload = dict(chart_spec)
-            chart_payload.setdefault("type", "chart")
-            chart_payload.setdefault("title", title)
-            charts.append(chart_payload)
+
+        chart_args = dict(chart_spec)
+        chart_args = _inject_source_columns(chart_args, rows, columns)
+        if _looks_like_placeholder_chart(chart_args):
+            chart_payload = _build_chart_from_rows(rows, columns, str(chart_args.get("title") or title), chart_args)
+            if chart_payload:
+                charts.append(chart_payload)
             continue
-        chart_payload = _build_chart_from_rows(rows, columns, str(chart_spec.get("title") or title), chart_spec)
+
+        chart_payload = _build_chart_from_rows(rows, columns, str(chart_args.get("title") or title), chart_args)
         if chart_payload:
             charts.append(chart_payload)
 
@@ -215,7 +218,47 @@ def _build_requested_chart(session_id: str, args: dict[str, Any]) -> dict[str, A
         return None
 
     title = str(args.get("title") or state.get("title") or "Chart")
-    return _build_chart_from_rows(rows, columns, title, args)
+    chart_args = _inject_source_columns(dict(args), rows, columns)
+    return _build_chart_from_rows(rows, columns, title, chart_args)
+
+
+def _inject_source_columns(args: dict[str, Any], rows: list[dict[str, Any]], columns: list[str]) -> dict[str, Any]:
+    chart_args = dict(args)
+    source_columns = chart_args.get("source_columns")
+    if isinstance(source_columns, dict):
+        for key in ("x", "y", "label", "value", "series"):
+            if not chart_args.get(key) and source_columns.get(key):
+                chart_args[key] = source_columns[key]
+        return chart_args
+
+    if isinstance(source_columns, list) and len(source_columns) >= 2:
+        chart_type = str(chart_args.get("chart_type", "")).strip().lower()
+        if chart_type in {"pie", "donut"}:
+            chart_args.setdefault("label", source_columns[0])
+            chart_args.setdefault("value", source_columns[1])
+        elif chart_type == "scatter":
+            chart_args.setdefault("x", source_columns[0])
+            chart_args.setdefault("y", source_columns[1])
+        else:
+            chart_args.setdefault("x", source_columns[0])
+            chart_args.setdefault("y", source_columns[1])
+    return chart_args
+
+
+def _looks_like_placeholder_chart(args: dict[str, Any]) -> bool:
+    datasets = args.get("datasets")
+    labels = args.get("labels")
+    if isinstance(datasets, list) and datasets:
+        for dataset in datasets:
+            if isinstance(dataset, dict):
+                data = dataset.get("data")
+                if isinstance(data, list) and data:
+                    for value in data:
+                        if isinstance(value, str) and value.strip() and not value.replace('.', '', 1).replace('-', '', 1).isdigit():
+                            return True
+    if isinstance(labels, list) and labels:
+        return any(isinstance(label, str) and label.strip() and not label.replace('.', '', 1).replace('-', '', 1).isdigit() for label in labels)
+    return False
 
 
 def _build_chart_from_rows(rows: list[dict[str, Any]], columns: list[str], title: str, args: dict[str, Any]) -> dict[str, Any] | None:
