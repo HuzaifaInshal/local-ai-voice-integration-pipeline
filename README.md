@@ -15,29 +15,28 @@ all reachable via ngrok while the Kaggle session is running.
 
 ## Kaggle setup
 
-1. **Enable GPU**: Notebook settings → Accelerator → GPU T4 x2.
-2. **Add your ngrok token**: Notebook editor → Add-ons → Secrets → add secret named `NGROK_TOKEN` with your ngrok authtoken.
-3. **Upload these files** as a Kaggle dataset (or paste into `/kaggle/working/` via a cell) so they sit together in one working directory.
-4. In a cell (install with CUDA support enabled):
-   ```bash
-   !CMAKE_ARGS="-DGGML_CUDA=on" FORCE_CMAKE=1 pip install llama-cpp-python[server] --no-cache-dir
-   !pip install -r requirements.txt
-   ```
-5. In the next cell:
-   ```
-   !python main.py
-   ```
-6. Wait for the log line `[main] Public URL: https://....ngrok-free.app` — open that in your browser.
+In a cell
+
+```
+!rm -rf local-ai-voice-integration-pipeline && \
+git clone https://github.com/HuzaifaInshal/local-ai-voice-integration-pipeline.git && \
+cd local-ai-voice-integration-pipeline && \
+git switch feat/inference-via-llama.cpp && \
+pip install -r requirements.txt && \
+python main.py
+```
 
 ## Performance & Architecture (llama.cpp Migration)
 
 To resolve vLLM PCIe and CPU bottlenecks on Kaggle 2x T4 GPUs (5–9 tokens/sec):
+
 - **Server Engine**: `llama.cpp` (`llama-cpp-python` / `llama-server`) with multi-GPU layer offloading (`-ngl 99`).
 - **Context Window**: 8192 tokens (8k context).
 - **KV Cache Quantization**: 8-bit (`q8_0`) KV cache (`--cache-type-k q8_0 --cache-type-v q8_0`).
 - **Default GGUF Model**: `Qwen/Qwen3-14B` (`bartowski/Qwen_Qwen3-14B-GGUF` file `Qwen_Qwen3-14B-Q4_K_M.gguf`), auto-downloaded on launch.
 
 Custom model override via environment variables:
+
 ```bash
 MODEL_REPO="bartowski/Qwen_Qwen3-14B-GGUF" MODEL_FILE="Qwen_Qwen3-14B-Q4_K_M.gguf" python main.py
 ```
