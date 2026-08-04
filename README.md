@@ -18,8 +18,9 @@ all reachable via ngrok while the Kaggle session is running.
 1. **Enable GPU**: Notebook settings → Accelerator → GPU T4 x2.
 2. **Add your ngrok token**: Notebook editor → Add-ons → Secrets → add secret named `NGROK_TOKEN` with your ngrok authtoken.
 3. **Upload these files** as a Kaggle dataset (or paste into `/kaggle/working/` via a cell) so they sit together in one working directory.
-4. In a cell:
-   ```
+4. In a cell (install with CUDA support enabled):
+   ```bash
+   !CMAKE_ARGS="-DGGML_CUDA=on" FORCE_CMAKE=1 pip install llama-cpp-python[server] --no-cache-dir
    !pip install -r requirements.txt
    ```
 5. In the next cell:

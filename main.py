@@ -66,6 +66,16 @@ def ensure_model_downloaded() -> str:
 
 def start_llama_server(model_path: str):
     print(f"[main] Launching llama.cpp server for {MODEL_NAME} ...")
+    try:
+        import llama_cpp
+        supports_gpu = getattr(llama_cpp, "llama_supports_gpu", lambda: False)()
+        print(f"[main] llama_cpp GPU/CUDA build status: {'ENABLED' if supports_gpu else 'DISABLED (CPU ONLY!)'}")
+        if not supports_gpu:
+            print("[WARNING] llama-cpp-python is running in CPU-ONLY mode because CUDA was not enabled during pip install!")
+            print("[WARNING] To enable 2x T4 GPU acceleration, install with: CMAKE_ARGS='-DGGML_CUDA=on' pip install llama-cpp-python[server]")
+    except Exception:
+        pass
+
     print(f"[main] Context size: {MAX_MODEL_LEN}, KV cache quantization: {KV_CACHE_DTYPE}")
     env = os.environ.copy()
 
