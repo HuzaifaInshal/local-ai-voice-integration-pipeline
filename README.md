@@ -11,7 +11,7 @@ all reachable via ngrok while the Kaggle session is running.
 - `agent.py` — the ReAct loop itself (native tool calling, history window)
 - `server.py` — FastAPI app: `/api/chat`, `/api/reset`, serves the UI
 - `static/index.html` — chat UI with a collapsible tool-call trace per message
-- `main.py` — orchestrator: starts vLLM, waits for health, opens ngrok, runs the app
+- `main.py` — orchestrator: downloads GGUF model if needed, starts llama.cpp server (8k context window + q8_0 KV cache), waits for health, opens ngrok, runs the app
 
 ## Kaggle setup
 
@@ -28,40 +28,18 @@ all reachable via ngrok while the Kaggle session is running.
    ```
 6. Wait for the log line `[main] Public URL: https://....ngrok-free.app` — open that in your browser.
 
-## What to test first
+## Performance & Architecture (llama.cpp Migration)
 
-- `what tables are available?` — should call `list_tables`, not guess.
-- `what's the status of order 7?` — should call `lookup_order_status` or `sql_query`, and the final answer's order id/status should match the raw tool output shown in the trace panel.
-- `total revenue from delivered orders` — needs `get_schema` + `sql_query` combined, a good multi-step test.
-- Ask a question needing data, then immediately ask a *follow-up* referencing "that" — tests whether history/context carries over correctly.
+To resolve vLLM PCIe and CPU bottlenecks on Kaggle 2x T4 GPUs (5–9 tokens/sec):
+- **Server Engine**: `llama.cpp` (`llama-cpp-python` / `llama-server`) with multi-GPU layer offloading (`-ngl 99`).
+- **Context Window**: 8192 tokens (8k context).
+- **KV Cache Quantization**: 8-bit (`q8_0`) KV cache (`--cache-type-k q8_0 --cache-type-v q8_0`).
+- **Default GGUF Model**: `Qwen/Qwen2.5-14B-Instruct-GGUF` (`qwen2.5-14b-instruct-q4_k_m.gguf`), auto-downloaded on launch.
 
-Click any "tool call: ..." row under a bot reply to see the exact raw
-tool output the model received — this is your fastest way to tell
-"model hallucinated" apart from "model answered correctly but you
-doubted it."
-
-## Fixed: OOM during guided-decoding warmup on T4
-
-If you saw a `CUDA out of memory` error that hit right after "Capturing
-CUDA graphs" and during a `warmup_kernels`/`grammar_output` step, that's
-CUDA graph capture (~2.3 GiB/GPU) leaving almost no room for the tool-call
-grammar warmup. `main.py` now passes `--enforce-eager` to skip graph
-capture entirely, and `MAX_MODEL_LEN` defaults to 4096 for extra margin.
-This trades a little decode latency for the memory back — fine for a POC.
-
-## If Qwen3-32B-AWQ doesn't fit or errors out on your 2x T4
-
-Turing GPUs (T4) don't support the fast `awq_marlin` kernel or
-FlashAttention-2, which `main.py` already accounts for (`--quantization
-awq`, `VLLM_ATTENTION_BACKEND=XFORMERS`). If you still hit an OOM or a
-kernel-compatibility error, drop to a smaller model — no code changes
-needed elsewhere:
-
+Custom model override via environment variables:
 ```bash
-MODEL_NAME=Qwen/Qwen3-14B-AWQ python main.py
+MODEL_REPO="Qwen/Qwen2.5-14B-Instruct-GGUF" MODEL_FILE="qwen2.5-14b-instruct-q4_k_m.gguf" python main.py
 ```
-
-or edit `MAX_MODEL_LEN` down (e.g. to 4096) if you need more KV-cache headroom.
 
 ## Why this shouldn't hallucinate the way your Qwen2.5 setup did
 

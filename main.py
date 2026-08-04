@@ -4,115 +4,117 @@ Run this in a Kaggle notebook cell with:  !python main.py
 
 What it does, in order:
   1. Builds the sample SQLite database.
-  2. Launches vLLM's OpenAI-compatible server as a subprocess, tensor-
-     parallel across both T4s, with native tool calling enabled.
-  3. Waits for vLLM to report healthy.
-  4. Opens an ngrok tunnel (token pulled from Kaggle Secrets) to the
-     FastAPI app.
-  5. Starts the FastAPI app (chat API + UI) in the foreground.
+  2. Ensures the GGUF model file is present (downloading from HF if needed).
+  3. Launches llama.cpp OpenAI-compatible server as a subprocess, offloading
+     all layers across available GPUs, with an 8k context window and q8_0 KV cache.
+  4. Waits for llama.cpp server to report healthy.
+  5. Opens an ngrok tunnel (token pulled from Kaggle Secrets) to the FastAPI app.
+  6. Starts the FastAPI app (chat API + UI) in the foreground.
 
 Before running:
   - Add your ngrok authtoken as a Kaggle Secret named NGROK_TOKEN
     (Add-ons -> Secrets in the Kaggle notebook editor).
   - Make sure the notebook has GPU: 2x T4 enabled.
   - pip install -r requirements.txt in an earlier cell.
-
-If Qwen3-32B-AWQ fails to load or OOMs on your two T4s, drop
-MODEL_NAME down to "Qwen/Qwen3-14B-AWQ" (or a smaller AWQ build) --
-see the README for the fallback command.
-
-Note on T4 memory: vLLM's CUDA graph capture step alone can eat over
-2 GiB per GPU, which is exactly what caused an OOM during the guided-
-decoding warmup step in earlier test runs (weights + activations +
-graphs left ~19 MiB free, then a routine warmup allocation failed).
---enforce-eager below trades a bit of decode latency for that memory
-back -- worth keeping for a POC on T4s regardless of model size.
 """
 
 import os
 import sys
 import time
+import shutil
 import subprocess
 import requests
 
 from db_setup import build_database
 
 # ---------------------------------------------------------------
-# POSSIBLE MODEL OPTIONS ON 2x TESLA T4 - KAGGLE NOTEBOOKS:
-
-# 1. Qwen/Qwen2.5-7B-Instruct;
-#       was good model as long as system prompt contains few things/rules
-#       after visualization tool was implemented and sql tool modified
-#       it started to hallucinate and ignore system prompt instructions
-#       especially the case where it was creating sql table data and base64 visualizations in responses
-
-# 2a. Qwen/Qwen2.5-14B-Instruct;
-#       OOM error could not be supported on 2x Tesla t4
-
-# 2b. Qwen/Qwen2.5-14B-Instruct-AWQ;
-#       same issue as that of 7b one however it was also returning responses in thai language for some reason
-
-# 3. Qwen/Qwen3-14B-AWQ (best option so far considering others);
-#       perfect model in terms of responses, does not hallucinate and keep system instructions in check
-#       however is slower than 2.5-7b
-
-# 4. Qwen/Qwen3-32B-AWQ;
-#       ofcourse high context window and more parameters support very well
-#       however is extremely slow at 1 or 2 tokens/sec
+# MODEL CONFIGURATION FOR LLAMA.CPP ON 2x TESLA T4
 # ---------------------------------------------------------------
+MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-14B-Instruct-GGUF")
+MODEL_REPO = os.environ.get("MODEL_REPO", "Qwen/Qwen2.5-14B-Instruct-GGUF")
+MODEL_FILE = os.environ.get("MODEL_FILE", "qwen2.5-14b-instruct-q4_k_m.gguf")
 
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-14B-AWQ")
-VLLM_PORT = 8000
+LLM_PORT = 8000
 APP_PORT = 8080
-MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "4096"))  # lowered from 8192: T4s only report ~14.56 GiB usable, KV cache needs the headroom
+MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "8192"))  # 8k context window requested
+KV_CACHE_DTYPE = os.environ.get("KV_CACHE_DTYPE", "q8_0")      # q8_0 8-bit KV cache requested
 
-VLLM_HEALTH_URL = f"http://localhost:{VLLM_PORT}/health"
+LLM_HEALTH_URL = f"http://localhost:{LLM_PORT}/health"
 
 
-def start_vllm():
-    print(f"[main] Launching vLLM server for {MODEL_NAME} ...")
+def ensure_model_downloaded() -> str:
+    local_path = os.environ.get("MODEL_PATH")
+    if local_path and os.path.exists(local_path):
+        print(f"[main] Using local GGUF model at: {local_path}")
+        return local_path
+
+    cwd_path = os.path.join(os.getcwd(), MODEL_FILE)
+    if os.path.exists(cwd_path):
+        print(f"[main] Found model file in working directory: {cwd_path}")
+        return cwd_path
+
+    print(f"[main] Downloading GGUF model '{MODEL_FILE}' from Hugging Face repo '{MODEL_REPO}'...")
+    try:
+        from huggingface_hub import hf_hub_download
+        downloaded_path = hf_hub_download(repo_id=MODEL_REPO, filename=MODEL_FILE)
+        print(f"[main] Model downloaded to: {downloaded_path}")
+        return downloaded_path
+    except Exception as e:
+        print(f"[main] Error downloading GGUF model: {e}")
+        sys.exit(1)
+
+
+def start_llama_server(model_path: str):
+    print(f"[main] Launching llama.cpp server for {MODEL_NAME} ...")
+    print(f"[main] Context size: {MAX_MODEL_LEN}, KV cache quantization: {KV_CACHE_DTYPE}")
     env = os.environ.copy()
-    # T4 = Turing architecture: no FlashAttention-2, force xFormers backend & silence unsupported FlashInfer sampler
-    env["VLLM_ATTENTION_BACKEND"] = "XFORMERS"
-    env["VLLM_USE_FLASHINFER_SAMPLER"] = "0"
-    env["VLLM_USE_V1"] = "0"
 
-    cmd = [
-        sys.executable, "-m", "vllm.entrypoints.openai.api_server",
-        "--model", MODEL_NAME,
-        "--tensor-parallel-size", "2",
-        "--dtype", "float16",
-        "--max-model-len", str(MAX_MODEL_LEN),
-        "--gpu-memory-utilization", "0.85",
-        "--enforce-eager",                      # skip CUDA graph capture -- frees ~2.3 GiB/GPU, tight T4s need this room
-        "--enable-auto-tool-choice",
-        "--tool-call-parser", "hermes",         # Hermes tool-call parser for native function calling (supported by Qwen2.5-7B-Instruct)
-        "--host", "0.0.0.0",
-        "--port", str(VLLM_PORT),
-        "--trust-remote-code",
-    ]
-
-    # Conditionally add AWQ quantization flag if loading an AWQ model
-    if "awq" in MODEL_NAME.lower():
-        cmd.extend(["--quantization", "awq"])   # plain AWQ kernel; awq_marlin needs Ampere+, not Turing/T4
-
-    # Conditionally add Qwen3 reasoning parser if loading a Qwen3 reasoning model
-    if "qwen3" in MODEL_NAME.lower():
-        cmd.extend(["--reasoning-parser", "qwen3"])  # splits <think> content into reasoning_content
+    llama_server_bin = shutil.which("llama-server")
+    if llama_server_bin:
+        cmd = [
+            llama_server_bin,
+            "-m", model_path,
+            "-c", str(MAX_MODEL_LEN),
+            "--cache-type-k", KV_CACHE_DTYPE,
+            "--cache-type-v", KV_CACHE_DTYPE,
+            "-ngl", "99",
+            "--host", "0.0.0.0",
+            "--port", str(LLM_PORT),
+            "--alias", MODEL_NAME,
+        ]
+    else:
+        cmd = [
+            sys.executable, "-m", "llama_cpp.server",
+            "--model", model_path,
+            "--n_ctx", str(MAX_MODEL_LEN),
+            "--cache_type_k", KV_CACHE_DTYPE,
+            "--cache_type_v", KV_CACHE_DTYPE,
+            "--n_gpu_layers", "99",
+            "--host", "0.0.0.0",
+            "--port", str(LLM_PORT),
+            "--model_alias", MODEL_NAME,
+        ]
 
     print("[main] Command:", " ".join(cmd))
     proc = subprocess.Popen(cmd, env=env)
     return proc
 
 
-def wait_for_vllm(timeout_s=1800):
-    print("[main] Waiting for vLLM to become healthy (first load can take several minutes)...")
+def wait_for_llama_server(timeout_s=1800):
+    print("[main] Waiting for llama.cpp server to become healthy (first load can take a couple of minutes)...")
     start = time.time()
     while time.time() - start < timeout_s:
         try:
-            r = requests.get(VLLM_HEALTH_URL, timeout=3)
+            r = requests.get(LLM_HEALTH_URL, timeout=3)
             if r.status_code == 200:
-                print("[main] vLLM is healthy.")
+                print("[main] llama.cpp server is healthy.")
+                return True
+        except requests.exceptions.RequestException:
+            pass
+        try:
+            r = requests.get(f"http://localhost:{LLM_PORT}/v1/models", timeout=3)
+            if r.status_code == 200:
+                print("[main] llama.cpp server is healthy.")
                 return True
         except requests.exceptions.RequestException:
             pass
@@ -144,25 +146,28 @@ def start_ngrok():
 def main():
     build_database()
 
-    vllm_proc = start_vllm()
+    model_path = ensure_model_downloaded()
+    llama_proc = start_llama_server(model_path)
     try:
-        if not wait_for_vllm():
-            print("[main] vLLM did not become healthy in time. Check logs above.")
-            vllm_proc.terminate()
+        if not wait_for_llama_server():
+            print("[main] llama.cpp server did not become healthy in time. Check logs above.")
+            llama_proc.terminate()
             sys.exit(1)
 
         start_ngrok()
 
         # Run FastAPI app in the foreground so the process (and tunnel) stays alive.
-        os.environ["VLLM_BASE_URL"] = f"http://localhost:{VLLM_PORT}/v1"
+        os.environ["LLM_BASE_URL"] = f"http://localhost:{LLM_PORT}/v1"
+        os.environ["VLLM_BASE_URL"] = f"http://localhost:{LLM_PORT}/v1"
         os.environ["MODEL_NAME"] = MODEL_NAME
 
         import uvicorn
         uvicorn.run("server:app", host="0.0.0.0", port=APP_PORT, log_level="info")
 
     finally:
-        vllm_proc.terminate()
+        llama_proc.terminate()
 
 
 if __name__ == "__main__":
     main()
+

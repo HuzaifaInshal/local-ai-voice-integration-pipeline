@@ -25,7 +25,7 @@ from main import MODEL_NAME
 from artifacts import build_artifacts, render_chart_result, reset_artifacts
 from tools import TOOL_DISPATCH, TOOL_SCHEMAS
 
-VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1"))
 MAX_ITERATIONS = 6
 MAX_HISTORY_MESSAGES = 16  # rolling window, excludes system prompt
 
@@ -139,8 +139,8 @@ def _looks_like_plain_table_line(line: str) -> bool:
 # Disables Qwen3's <think>...</think> reasoning block if a Qwen3 model is specified.
 EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": False}} if "qwen3" in MODEL_NAME.lower() else None
 
-client = OpenAI(base_url=VLLM_BASE_URL, api_key="EMPTY")
-async_client = AsyncOpenAI(base_url=VLLM_BASE_URL, api_key="EMPTY")
+client = OpenAI(base_url=LLM_BASE_URL, api_key="EMPTY")
+async_client = AsyncOpenAI(base_url=LLM_BASE_URL, api_key="EMPTY")
 
 
 class ConversationManager:
