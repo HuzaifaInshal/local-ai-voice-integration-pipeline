@@ -1214,7 +1214,7 @@
         wrap.appendChild(meta);
 
         chatContainer.appendChild(wrap);
-        drawChart(canvas, event);
+        requestAnimationFrame(() => drawChart(canvas, event));
         pngBtn.addEventListener("click", () =>
           downloadCanvasPng(canvas, event.title || "chart")
         );
@@ -1268,7 +1268,7 @@
             canvas.height = 220;
             card.appendChild(canvas);
             chartsGrid.appendChild(card);
-            drawChart(canvas, chartSpec);
+            requestAnimationFrame(() => drawChart(canvas, chartSpec));
           });
           wrap.appendChild(chartsGrid);
         }
@@ -1397,38 +1397,75 @@
         );
       }
 
+      function normalizeChartEvent(event) {
+        const normalized = { ...(event || {}) };
+        const datasets = Array.isArray(normalized.datasets)
+          ? normalized.datasets.filter(Boolean)
+          : [];
+        const labels = Array.isArray(normalized.labels)
+          ? normalized.labels
+          : [];
+
+        if (!datasets.length && Array.isArray(normalized.data)) {
+          normalized.datasets = [
+            { label: normalized.series_label || "value", data: normalized.data }
+          ];
+        }
+        if (
+          !labels.length &&
+          normalized.datasets.length &&
+          Array.isArray(normalized.datasets[0].data)
+        ) {
+          normalized.labels = normalized.datasets[0].data.map((_, index) =>
+            String(index + 1)
+          );
+        }
+        return normalized;
+      }
+
       function drawChart(canvas, event) {
         const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const normalizedEvent = normalizeChartEvent(event);
         const width = canvas.width;
         const height = canvas.height;
-        const chartType = event.chart_type || "bar";
+        const chartType = normalizedEvent.chart_type || "bar";
 
         ctx.clearRect(0, 0, width, height);
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, width, height);
+        ctx.strokeStyle = "#e5e7eb";
+        ctx.strokeRect(1, 1, width - 2, height - 2);
         ctx.font = "12px Inter, sans-serif";
 
         if (chartType === "pie" || chartType === "donut") {
-          drawPieDonutChart(ctx, event, width, height, chartType === "donut");
+          drawPieDonutChart(
+            ctx,
+            normalizedEvent,
+            width,
+            height,
+            chartType === "donut"
+          );
           return;
         }
 
         if (chartType === "scatter") {
-          drawScatterChart(ctx, event, width, height);
+          drawScatterChart(ctx, normalizedEvent, width, height);
           return;
         }
 
         if (chartType === "horizontal_bar") {
-          drawHorizontalBarChart(ctx, event, width, height);
+          drawHorizontalBarChart(ctx, normalizedEvent, width, height);
           return;
         }
 
         if (chartType === "line") {
-          drawLineChart(ctx, event, width, height);
+          drawLineChart(ctx, normalizedEvent, width, height);
           return;
         }
 
-        drawBarChart(ctx, event, width, height);
+        drawBarChart(ctx, normalizedEvent, width, height);
       }
 
       function drawAxes(ctx, width, height, pad, min, max) {
