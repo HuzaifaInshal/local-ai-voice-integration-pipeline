@@ -37,7 +37,7 @@ MODEL_FILE = os.environ.get("MODEL_FILE", "Qwen_Qwen3-14B-Q4_K_M.gguf")
 LLM_PORT = 8000
 APP_PORT = 8080
 MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "8192"))  # 8k context window requested
-KV_CACHE_DTYPE = os.environ.get("KV_CACHE_DTYPE", "q8_0")      # q8_0 8-bit KV cache requested
+KV_CACHE_DTYPE = os.environ.get("KV_CACHE_DTYPE", "8")      # q8_0 8-bit KV cache requested
 
 LLM_HEALTH_URL = f"http://localhost:{LLM_PORT}/health"
 
