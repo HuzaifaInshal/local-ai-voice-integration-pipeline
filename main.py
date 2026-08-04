@@ -27,6 +27,28 @@ import requests
 
 from db_setup import build_database
 
+
+def build_llama_cpp_install_command(cuda_arch: str | None = None):
+    """Return the pip install command and environment needed for a CUDA-enabled llama-cpp build."""
+    env = os.environ.copy()
+    cmake_args = ["-DGGML_CUDA=on"]
+
+    if cuda_arch:
+        cmake_args.append(f"-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}")
+
+    env.setdefault("CMAKE_ARGS", " ".join(cmake_args))
+    env.setdefault("FORCE_CMAKE", "1")
+
+    install_cmd = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--upgrade",
+        "llama-cpp-python[server]",
+    ]
+    return install_cmd, env
+
 # ---------------------------------------------------------------
 # MODEL CONFIGURATION FOR LLAMA.CPP ON 2x TESLA T4
 # ---------------------------------------------------------------
@@ -40,6 +62,39 @@ MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "8192"))  # 8k context windo
 KV_CACHE_DTYPE = os.environ.get("KV_CACHE_DTYPE", "8")      # q8_0 8-bit KV cache requested
 
 LLM_HEALTH_URL = f"http://localhost:{LLM_PORT}/health"
+
+
+def ensure_llama_cpp_cuda_build():
+    """Install a CUDA-enabled llama-cpp-python build when the environment exposes GPUs."""
+    import importlib.util
+
+    if importlib.util.find_spec("llama_cpp") is not None:
+        try:
+            import llama_cpp
+
+            if getattr(llama_cpp, "llama_supports_gpu", lambda: False)():
+                print("[main] llama-cpp-python is already built with GPU support.")
+                return False
+        except Exception as exc:
+            print(f"[main] Unable to inspect installed llama-cpp build: {exc}")
+
+    cuda_arch = os.environ.get("CUDA_ARCHITECTURES") or os.environ.get("CUDA_ARCH")
+    if not cuda_arch and (os.environ.get("CUDA_VISIBLE_DEVICES") or os.environ.get("KAGGLE_KERNEL_RUN_TYPE")):
+        cuda_arch = "75"
+
+    install_cmd, install_env = build_llama_cpp_install_command(cuda_arch=cuda_arch)
+    print("[main] Installing CUDA-enabled llama-cpp-python build...")
+    print("[main] Install command:", " ".join(install_cmd))
+    print("[main] CMAKE_ARGS:", install_env.get("CMAKE_ARGS"))
+
+    result = subprocess.run(install_cmd, env=install_env, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(result.stdout)
+        print(result.stderr)
+        raise RuntimeError("Failed to install CUDA-enabled llama-cpp-python")
+
+    print("[main] CUDA-enabled llama-cpp-python install completed.")
+    return True
 
 
 def ensure_model_downloaded() -> str:
@@ -66,6 +121,8 @@ def ensure_model_downloaded() -> str:
 
 def start_llama_server(model_path: str):
     print(f"[main] Launching llama.cpp server for {MODEL_NAME} ...")
+    env = os.environ.copy()
+    env.setdefault("CUDA_VISIBLE_DEVICES", "0")
     try:
         import llama_cpp
         supports_gpu = getattr(llama_cpp, "llama_supports_gpu", lambda: False)()
@@ -81,6 +138,7 @@ def start_llama_server(model_path: str):
 
     llama_server_bin = shutil.which("llama-server")
     if llama_server_bin:
+        print('[main] Using llama-server')
         cmd = [
             llama_server_bin,
             "-m", model_path,
@@ -93,6 +151,7 @@ def start_llama_server(model_path: str):
             "--alias", MODEL_NAME,
         ]
     else:
+        print('[main] Using llama_cpp python server')
         cmd = [
             sys.executable, "-m", "llama_cpp.server",
             "--model", model_path,
@@ -155,6 +214,13 @@ def start_ngrok():
 
 def main():
     build_database()
+
+    if os.environ.get("KAGGLE_KERNEL_RUN_TYPE") or os.environ.get("CUDA_VISIBLE_DEVICES"):
+        try:
+            ensure_llama_cpp_cuda_build()
+        except RuntimeError as exc:
+            print(f"[main] {exc}")
+            print("[main] Falling back to the current installed build; the server may run on CPU only.")
 
     model_path = ensure_model_downloaded()
     llama_proc = start_llama_server(model_path)
