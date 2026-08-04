@@ -28,12 +28,19 @@ all reachable via ngrok while the Kaggle session is running.
    ```
 6. Wait for the log line `[main] Public URL: https://....ngrok-free.app` — open that in your browser.
 
+Example - Run in kaggle cell:
+!rm -rf local-ai-voice-integration-pipeline && \
+git clone https://github.com/HuzaifaInshal/local-ai-voice-integration-pipeline.git && \
+cd local-ai-voice-integration-pipeline && \
+pip install -r requirements.txt && \
+python main.py
+
 ## What to test first
 
 - `what tables are available?` — should call `list_tables`, not guess.
 - `what's the status of order 7?` — should call `lookup_order_status` or `sql_query`, and the final answer's order id/status should match the raw tool output shown in the trace panel.
 - `total revenue from delivered orders` — needs `get_schema` + `sql_query` combined, a good multi-step test.
-- Ask a question needing data, then immediately ask a *follow-up* referencing "that" — tests whether history/context carries over correctly.
+- Ask a question needing data, then immediately ask a _follow-up_ referencing "that" — tests whether history/context carries over correctly.
 
 Click any "tool call: ..." row under a bot reply to see the exact raw
 tool output the model received — this is your fastest way to tell
