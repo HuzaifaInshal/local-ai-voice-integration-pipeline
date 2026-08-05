@@ -45,7 +45,9 @@ def build_llama_cpp_install_command(cuda_arch: str | None = None):
         "pip",
         "install",
         "--upgrade",
-        "llama-cpp-python[server]",
+        "--extra-index-url",
+        "https://abetlen.github.io/llama-cpp-python/whl/cu124",
+        "llama-cpp-python",
     ]
     return install_cmd, env
 

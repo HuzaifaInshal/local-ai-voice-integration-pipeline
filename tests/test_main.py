@@ -15,7 +15,9 @@ def test_build_gpu_install_command_for_cuda(monkeypatch):
     install_cmd, install_env = main.build_llama_cpp_install_command(cuda_arch="75")
 
     assert install_cmd[:4] == [sys.executable, "-m", "pip", "install"]
-    assert "llama-cpp-python[server]" in install_cmd
+    assert "--extra-index-url" in install_cmd
+    assert "https://abetlen.github.io/llama-cpp-python/whl/cu124" in install_cmd
+    assert "llama-cpp-python" in install_cmd
     assert "-DGGML_CUDA=on" in install_env["CMAKE_ARGS"]
     assert "-DCMAKE_CUDA_ARCHITECTURES=75" in install_env["CMAKE_ARGS"]
 
@@ -28,4 +30,7 @@ def test_default_cuda_architecture_uses_t4_target(monkeypatch):
     install_cmd, install_env = main.build_llama_cpp_install_command(cuda_arch="75")
 
     assert install_cmd[:4] == [sys.executable, "-m", "pip", "install"]
+    assert "--extra-index-url" in install_cmd
+    assert "https://abetlen.github.io/llama-cpp-python/whl/cu124" in install_cmd
+    assert "llama-cpp-python" in install_cmd
     assert "-DCMAKE_CUDA_ARCHITECTURES=75" in install_env["CMAKE_ARGS"]
