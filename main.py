@@ -166,6 +166,9 @@ def start_llama_server(model_path: str):
         cmd = [
             sys.executable, "-m", "llama_cpp.server",
             "--model", model_path,
+            "--n_ctx", str(MAX_MODEL_LEN),
+            # "--type_k", KV_CACHE_DTYPE,
+            # "--type_v", KV_CACHE_DTYPE,
             "--n_gpu_layers", "-1",
             "--host", "0.0.0.0",
             "--port", str(LLM_PORT),
