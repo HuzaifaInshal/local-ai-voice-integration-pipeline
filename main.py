@@ -33,8 +33,8 @@ def build_llama_cpp_install_command(cuda_arch: str | None = None):
     env = os.environ.copy()
     cmake_args = ["-DGGML_CUDA=on"]
 
-    if cuda_arch:
-        cmake_args.append(f"-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}")
+    # if cuda_arch:
+    #     cmake_args.append(f"-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}")
 
     env.setdefault("CMAKE_ARGS", " ".join(cmake_args))
     env.setdefault("FORCE_CMAKE", "1")
@@ -44,7 +44,6 @@ def build_llama_cpp_install_command(cuda_arch: str | None = None):
         "-m",
         "pip",
         "install",
-        "--upgrade",
         "--extra-index-url",
         "https://abetlen.github.io/llama-cpp-python/whl/cu124",
         "llama-cpp-python",
@@ -80,11 +79,11 @@ def ensure_llama_cpp_cuda_build():
         except Exception as exc:
             print(f"[main] Unable to inspect installed llama-cpp build: {exc}")
 
-    cuda_arch = os.environ.get("CUDA_ARCHITECTURES") or os.environ.get("CUDA_ARCH")
-    if not cuda_arch and (os.environ.get("CUDA_VISIBLE_DEVICES") or os.environ.get("KAGGLE_KERNEL_RUN_TYPE")):
-        cuda_arch = "75"
+    # cuda_arch = os.environ.get("CUDA_ARCHITECTURES") or os.environ.get("CUDA_ARCH")
+    # if not cuda_arch and (os.environ.get("CUDA_VISIBLE_DEVICES") or os.environ.get("KAGGLE_KERNEL_RUN_TYPE")):
+    #     cuda_arch = "75"
 
-    install_cmd, install_env = build_llama_cpp_install_command(cuda_arch=cuda_arch)
+    install_cmd, install_env = build_llama_cpp_install_command()
     print("[main] Installing CUDA-enabled llama-cpp-python build...")
     print("[main] Install command:", " ".join(install_cmd))
     print("[main] CMAKE_ARGS:", install_env.get("CMAKE_ARGS"))
