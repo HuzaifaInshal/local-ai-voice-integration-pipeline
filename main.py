@@ -36,7 +36,16 @@ def build_llama_cpp_install_command(cuda_arch: str | None = None):
     # if cuda_arch:
     #     cmake_args.append(f"-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}")
 
-    env.setdefault("CMAKE_ARGS", " ".join(cmake_args))
+    existing_cmake_args = env.get("CMAKE_ARGS", "")
+    if existing_cmake_args:
+        merged_cmake_args = existing_cmake_args
+        for arg in cmake_args:
+            if arg not in merged_cmake_args:
+                merged_cmake_args += f" {arg}"
+        env["CMAKE_ARGS"] = merged_cmake_args
+    else:
+        env["CMAKE_ARGS"] = " ".join(cmake_args)
+
     env.setdefault("FORCE_CMAKE", "1")
 
     install_cmd = [
@@ -44,9 +53,12 @@ def build_llama_cpp_install_command(cuda_arch: str | None = None):
         "-m",
         "pip",
         "install",
+        "--force-reinstall",
+        "--no-cache-dir",
+        "--prefer-binary",
         "--extra-index-url",
         "https://abetlen.github.io/llama-cpp-python/whl/cu124",
-        "llama-cpp-python",
+        "llama-cpp-python[server]",
     ]
     return install_cmd, env
 
@@ -65,25 +77,29 @@ KV_CACHE_DTYPE = os.environ.get("KV_CACHE_DTYPE", "8")      # q8_0 8-bit KV cach
 LLM_HEALTH_URL = f"http://localhost:{LLM_PORT}/health"
 
 
+def check_llama_supports_gpu() -> bool:
+    """Check if installed llama_cpp has GPU support in an isolated subprocess."""
+    code = (
+        "import sys; "
+        "import importlib.util; "
+        "spec = importlib.util.find_spec('llama_cpp'); "
+        "sys.exit(0 if spec and getattr(__import__('llama_cpp'), 'llama_supports_gpu', lambda: False)() else 1)"
+    )
+    res = subprocess.run([sys.executable, "-c", code], capture_output=True)
+    return res.returncode == 0
+
+
 def ensure_llama_cpp_cuda_build():
     """Install a CUDA-enabled llama-cpp-python build when the environment exposes GPUs."""
-    import importlib.util
+    if check_llama_supports_gpu():
+        print("[main] llama-cpp-python is already built with GPU support.")
+        return False
 
-    if importlib.util.find_spec("llama_cpp") is not None:
-        try:
-            import llama_cpp
+    cuda_arch = os.environ.get("CUDA_ARCHITECTURES") or os.environ.get("CUDA_ARCH")
+    if not cuda_arch and (os.environ.get("CUDA_VISIBLE_DEVICES") or os.environ.get("KAGGLE_KERNEL_RUN_TYPE")):
+        cuda_arch = "75"
 
-            if getattr(llama_cpp, "llama_supports_gpu", lambda: False)():
-                print("[main] llama-cpp-python is already built with GPU support.")
-                return False
-        except Exception as exc:
-            print(f"[main] Unable to inspect installed llama-cpp build: {exc}")
-
-    # cuda_arch = os.environ.get("CUDA_ARCHITECTURES") or os.environ.get("CUDA_ARCH")
-    # if not cuda_arch and (os.environ.get("CUDA_VISIBLE_DEVICES") or os.environ.get("KAGGLE_KERNEL_RUN_TYPE")):
-    #     cuda_arch = "75"
-
-    install_cmd, install_env = build_llama_cpp_install_command()
+    install_cmd, install_env = build_llama_cpp_install_command(cuda_arch=cuda_arch)
     print("[main] Installing CUDA-enabled llama-cpp-python build...")
     print("[main] Install command:", " ".join(install_cmd))
     print("[main] CMAKE_ARGS:", install_env.get("CMAKE_ARGS"))
@@ -123,19 +139,16 @@ def ensure_model_downloaded() -> str:
 def start_llama_server(model_path: str):
     print(f"[main] Launching llama.cpp server for {MODEL_NAME} ...")
     env = os.environ.copy()
-    env.setdefault("CUDA_VISIBLE_DEVICES", "0")
-    try:
-        import llama_cpp
-        supports_gpu = getattr(llama_cpp, "llama_supports_gpu", lambda: False)()
-        print(f"[main] llama_cpp GPU/CUDA build status: {'ENABLED' if supports_gpu else 'DISABLED (CPU ONLY!)'}")
-        if not supports_gpu:
-            print("[WARNING] llama-cpp-python is running in CPU-ONLY mode because CUDA was not enabled during pip install!")
-            print("[WARNING] To enable 2x T4 GPU acceleration, install with: CMAKE_ARGS='-DGGML_CUDA=on' pip install llama-cpp-python[server]")
-    except Exception:
-        pass
+    if "CUDA_VISIBLE_DEVICES" not in env:
+        env["CUDA_VISIBLE_DEVICES"] = "0,1"
+
+    supports_gpu = check_llama_supports_gpu()
+    print(f"[main] llama_cpp GPU/CUDA build status: {'ENABLED' if supports_gpu else 'DISABLED (CPU ONLY!)'}")
+    if not supports_gpu:
+        print("[WARNING] llama-cpp-python is running in CPU-ONLY mode because CUDA was not enabled during pip install!")
+        print("[WARNING] To enable 2x T4 GPU acceleration, install with: CMAKE_ARGS='-DGGML_CUDA=on' pip install --force-reinstall --no-cache-dir llama-cpp-python[server]")
 
     print(f"[main] Context size: {MAX_MODEL_LEN}, KV cache quantization: {KV_CACHE_DTYPE}")
-    env = os.environ.copy()
 
     llama_server_bin = shutil.which("llama-server")
     if llama_server_bin:
@@ -143,10 +156,7 @@ def start_llama_server(model_path: str):
         cmd = [
             llama_server_bin,
             "-m", model_path,
-            # "-c", str(MAX_MODEL_LEN),
-            # "--cache-type-k", KV_CACHE_DTYPE,
-            # "--cache-type-v", KV_CACHE_DTYPE,
-            "-ngl", "99",
+            "-ngl", "-1",
             "--host", "0.0.0.0",
             "--port", str(LLM_PORT),
             "--alias", MODEL_NAME,
@@ -156,10 +166,7 @@ def start_llama_server(model_path: str):
         cmd = [
             sys.executable, "-m", "llama_cpp.server",
             "--model", model_path,
-            # "--n_ctx", str(MAX_MODEL_LEN),
-            # "--type_k", KV_CACHE_DTYPE,
-            # "--type_v", KV_CACHE_DTYPE,
-            "--n_gpu_layers", "99",
+            "--n_gpu_layers", "-1",
             "--host", "0.0.0.0",
             "--port", str(LLM_PORT),
             "--model_alias", MODEL_NAME,
