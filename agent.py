@@ -173,6 +173,33 @@ class ConversationManager:
         reset_artifacts(session_id)
 
 
+def extract_text_tool_calls(content: str):
+    """Extract tool calls embedded as <tool_call>{...}</tool_call> in assistant text."""
+    if not content or "<tool_call>" not in content:
+        return []
+
+    tool_calls = []
+    matches = re.finditer(r"<tool_call>\s*({.*?})\s*</tool_call>", content, re.DOTALL)
+    for idx, match in enumerate(matches):
+        try:
+            raw_json = match.group(1)
+            data = json.loads(raw_json)
+            name = data.get("name")
+            args = data.get("arguments", {})
+            if name:
+                tool_calls.append({
+                    "id": f"call_text_{idx}",
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "arguments": json.dumps(args) if isinstance(args, dict) else str(args),
+                    },
+                })
+        except Exception as e:
+            print(f"[agent] Error parsing text tool call: {e}")
+    return tool_calls
+
+
 convo = ConversationManager()
 
 
@@ -210,28 +237,37 @@ def run_agent(session_id: str, user_message: str):
         )
         msg = response.choices[0].message
 
+        tool_calls = []
         if msg.tool_calls:
+            tool_calls = [
+                {"id": tc.id, "type": "function",
+                 "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                for tc in msg.tool_calls
+            ]
+        elif msg.content and "<tool_call>" in msg.content:
+            tool_calls = extract_text_tool_calls(msg.content)
+
+        if tool_calls:
             convo.append(session_id, {
                 "role": "assistant",
                 "content": msg.content or "",
-                "tool_calls": [
-                    {"id": tc.id, "type": "function",
-                     "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-                    for tc in msg.tool_calls
-                ],
+                "tool_calls": tool_calls,
             })
-            for tc in msg.tool_calls:
+            for tc in tool_calls:
+                tc_id = tc["id"]
+                tc_name = tc["function"]["name"]
+                tc_args_raw = tc["function"]["arguments"]
                 try:
-                    args = json.loads(tc.function.arguments or "{}")
+                    args = json.loads(tc_args_raw) if isinstance(tc_args_raw, str) else tc_args_raw
                 except json.JSONDecodeError:
                     args = {}
-                result = _run_tool(tc.function.name, args, session_id)
-                trace.append({"tool": tc.function.name, "args": args, "result": result})
-                artifacts.extend(build_artifacts(tc.function.name, args, result, session_id))
-                convo.append(session_id, {"role": "tool", "tool_call_id": tc.id, "content": result})
+                result = _run_tool(tc_name, args, session_id)
+                trace.append({"tool": tc_name, "args": args, "result": result})
+                artifacts.extend(build_artifacts(tc_name, args, result, session_id))
+                convo.append(session_id, {"role": "tool", "tool_call_id": tc_id, "content": result})
             continue
 
-        final_text = msg.content or ""
+        final_text = re.sub(r"<think>.*?</think>", "", msg.content or "", flags=re.DOTALL).strip()
         convo.append(session_id, {"role": "assistant", "content": final_text})
         return final_text, trace, artifacts
 
@@ -295,31 +331,41 @@ async def run_agent_stream(session_id: str, user_message: str):
                         if tc_delta.function.arguments:
                             slot["arguments"] += tc_delta.function.arguments
 
+        parsed_tool_calls = []
         if tool_calls_acc:
             ordered = [tool_calls_acc[i] for i in sorted(tool_calls_acc)]
+            parsed_tool_calls = [
+                {"id": tc["id"] or f"call_{i}", "type": "function",
+                 "function": {"name": tc["name"], "arguments": tc["arguments"]}}
+                for i, tc in enumerate(ordered)
+            ]
+        elif "<tool_call>" in content_buf:
+            parsed_tool_calls = extract_text_tool_calls(content_buf)
+
+        if parsed_tool_calls:
             convo.append(session_id, {
                 "role": "assistant",
                 "content": content_buf,
-                "tool_calls": [
-                    {"id": tc["id"], "type": "function",
-                     "function": {"name": tc["name"], "arguments": tc["arguments"]}}
-                    for tc in ordered
-                ],
+                "tool_calls": parsed_tool_calls,
             })
-            for tc in ordered:
+            for tc in parsed_tool_calls:
+                tc_id = tc["id"]
+                func_name = tc["function"]["name"]
+                raw_args = tc["function"]["arguments"]
                 try:
-                    args = json.loads(tc["arguments"] or "{}")
+                    args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
                 except json.JSONDecodeError:
                     args = {}
-                result = _run_tool(tc["name"], args, session_id)
-                yield {"type": "tool", "tool": tc["name"], "args": args, "result": result}
-                for artifact in build_artifacts(tc["name"], args, result, session_id):
+                result = _run_tool(func_name, args, session_id)
+                yield {"type": "tool", "tool": func_name, "args": args, "result": result}
+                for artifact in build_artifacts(func_name, args, result, session_id):
                     yield artifact
-                convo.append(session_id, {"role": "tool", "tool_call_id": tc["id"], "content": result})
+                convo.append(session_id, {"role": "tool", "tool_call_id": tc_id, "content": result})
             continue  # loop again so the model sees the tool results
 
         # No tool calls in this turn -> it was the final answer
-        convo.append(session_id, {"role": "assistant", "content": content_buf})
+        final_content = re.sub(r"<think>.*?</think>", "", content_buf, flags=re.DOTALL).strip()
+        convo.append(session_id, {"role": "assistant", "content": final_content})
         yield {"type": "done"}
         return
 

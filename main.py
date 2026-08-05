@@ -33,6 +33,7 @@ def build_llama_cpp_install_command(cuda_arch: str | None = None):
     env = os.environ.copy()
     cmake_args = ["-DGGML_CUDA=on"]
 
+# keep it disabled temporary in order to not to collide with my kaggle configurations
     # if cuda_arch:
     #     cmake_args.append(f"-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}")
 
