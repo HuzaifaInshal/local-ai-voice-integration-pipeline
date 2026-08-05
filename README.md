@@ -18,9 +18,9 @@ all reachable via ngrok while the Kaggle session is running.
 In a cell
 
 ```
-!rm -rf local-ai-voice-integration-pipeline && \
-git clone https://github.com/HuzaifaInshal/local-ai-voice-integration-pipeline.git && \
-cd local-ai-voice-integration-pipeline && \
+!rm -rf local-AI-integration-setup-2 && \
+git clone https://github.com/HuzaifaInshal/local-AI-integration-setup-2.git && \
+cd local-AI-integration-setup-2 && \
 pip install -r requirements.txt && \
 python main.py
 ```
