@@ -715,7 +715,7 @@ function scheduleSilenceEnd() {
     if (currentVoiceMode === 'LISTENING_QUERY' && finalQueryText.trim()) {
       triggerVoiceSubmit();
     }
-  }, 2500);
+  }, 3500);
 }
 
 function triggerVoiceSubmit() {
