@@ -15,21 +15,22 @@ all reachable via ngrok while the Kaggle session is running.
 
 ## Kaggle setup
 
-1. **Enable GPU**: Notebook settings → Accelerator → GPU T4 x2.
-2. **Add your ngrok token**: Notebook editor → Add-ons → Secrets → add secret named `NGROK_TOKEN` with your ngrok authtoken.
-3. **Upload these files** as a Kaggle dataset (or paste into `/kaggle/working/` via a cell) so they sit together in one working directory.
-4. In a cell:
-   ```
-   !rm -rf local-ai-voice-integration-pipeline && git clone https://github.com/HuzaifaInshal/local-ai-voice-integration-pipeline.git && pip install -r local-ai-voice-integration-pipeline/requirements.txt && python local-ai-voice-integration-pipeline/main.py
-   ```
-5. Wait for the log line `[main] Public URL: https://....ngrok-free.app` — open that in your browser.
+In a cell
+
+```
+!rm -rf local-AI-integration-setup-2 && \
+git clone https://github.com/HuzaifaInshal/local-AI-integration-setup-2.git && \
+cd local-AI-integration-setup-2 && \
+pip install -r requirements.txt && \
+python main.py
+```
 
 ## What to test first
 
 - `what tables are available?` — should call `list_tables`, not guess.
 - `what's the status of order 7?` — should call `lookup_order_status` or `sql_query`, and the final answer's order id/status should match the raw tool output shown in the trace panel.
 - `total revenue from delivered orders` — needs `get_schema` + `sql_query` combined, a good multi-step test.
-- Ask a question needing data, then immediately ask a *follow-up* referencing "that" — tests whether history/context carries over correctly.
+- Ask a question needing data, then immediately ask a _follow-up_ referencing "that" — tests whether history/context carries over correctly.
 
 Click any "tool call: ..." row under a bot reply to see the exact raw
 tool output the model received — this is your fastest way to tell
