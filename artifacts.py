@@ -17,11 +17,11 @@ MAX_CHART_ROWS = 100
 CHART_TYPES = {"bar", "horizontal_bar", "line", "donut", "pie", "scatter"}
 
 DATE_COLUMN_RE = re.compile(r"(date|year|month|period|fy|financial_year)", re.IGNORECASE)
-SESSION_RESULTS: dict[str, dict[str, Any]] = {}
+SESSION_DATASETS: dict[str, list[dict[str, Any]]] = {}
 
 
 def reset_artifacts(session_id: str) -> None:
-    SESSION_RESULTS.pop(session_id, None)
+    SESSION_DATASETS.pop(session_id, None)
 
 
 def build_artifacts(
@@ -39,6 +39,10 @@ def build_artifacts(
         chart = _build_requested_chart(session_id, args)
         return [chart] if chart else []
 
+    if tool_name == "render_dashboard":
+        dashboard = _build_dashboard_artifact(session_id, args)
+        return [dashboard] if dashboard else []
+
     rows = _extract_rows(result_text)
     if not rows:
         return []
@@ -46,11 +50,13 @@ def build_artifacts(
     title = _title_for(tool_name, args)
     columns = list(rows[0].keys())
     if session_id:
-        SESSION_RESULTS[session_id] = {
+        if session_id not in SESSION_DATASETS:
+            SESSION_DATASETS[session_id] = []
+        SESSION_DATASETS[session_id].append({
             "title": title,
             "columns": columns,
             "rows": rows,
-        }
+        })
 
     artifacts: list[dict[str, Any]] = [
         {
@@ -77,6 +83,7 @@ def render_chart_result(session_id: str, args: dict[str, Any]) -> str:
         "title": chart["title"],
         "source_columns": chart["source_columns"],
     })
+
 
 
 def _build_schema_diagram(result_text: str) -> dict[str, Any] | None:
@@ -164,11 +171,41 @@ def _title_from_query(query: str) -> str:
     return compact[:87].rstrip() + "..."
 
 
-def _build_requested_chart(session_id: str, args: dict[str, Any]) -> dict[str, Any] | None:
-    state = SESSION_RESULTS.get(session_id)
-    if not state:
+def _build_dashboard_artifact(session_id: str, args: dict[str, Any]) -> dict[str, Any] | None:
+    title = str(args.get("title") or "Executive Analytics Dashboard")
+    subtitle = str(args.get("subtitle") or "")
+    kpis = args.get("kpis") if isinstance(args.get("kpis"), list) else []
+    chart_specs = args.get("charts") if isinstance(args.get("charts"), list) else []
+
+    rendered_charts = []
+    for spec in chart_specs:
+        if isinstance(spec, dict):
+            chart_art = _build_requested_chart(session_id, spec)
+            if chart_art:
+                rendered_charts.append(chart_art)
+
+    if not rendered_charts and not kpis:
         return None
 
+    return {
+        "type": "dashboard",
+        "title": title,
+        "subtitle": subtitle,
+        "kpis": kpis,
+        "charts": rendered_charts,
+    }
+
+
+def _build_requested_chart(session_id: str, args: dict[str, Any]) -> dict[str, Any] | None:
+    datasets = SESSION_DATASETS.get(session_id) or []
+    if not datasets:
+        return None
+
+    ds_idx = args.get("dataset_index", -1)
+    if not isinstance(ds_idx, int) or ds_idx >= len(datasets) or ds_idx < -len(datasets):
+        ds_idx = -1
+
+    state = datasets[ds_idx]
     rows = state.get("rows") or []
     columns = state.get("columns") or []
     if not rows or not columns:

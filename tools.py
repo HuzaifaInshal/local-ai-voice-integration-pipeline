@@ -151,16 +151,16 @@ def render_chart(
     label: str = "",
     value: str = "",
     series: str = "",
+    dataset_index: int = -1,
 ) -> str:
-    """Render a chart from the most recent real tabular tool result. Use this
-    only when the user explicitly asks for a chart, graph, plot, pie, donut,
-    line, bar, or scatter visualization. Do not call this before retrieving
-    data with sql_query, lookup_client, or get_client_orr. The requested columns
-    must exist in the latest result.
+    """Render a chart from a real tabular tool result. Use this when the user explicitly
+    asks for a chart, graph, plot, pie, donut, line, bar, or scatter visualization.
+    The requested columns must exist in the result.
 
     Supported chart_type values: bar, horizontal_bar, line, donut, pie, scatter.
     For bar/horizontal_bar/line use x and y. For donut/pie use label and value.
-    For scatter use x and y, with optional label."""
+    For scatter use x and y, with optional label.
+    dataset_index specifies 0-based index of which query result to use (-1 for latest)."""
     return json.dumps({
         "chart_request": {
             "chart_type": chart_type,
@@ -170,6 +170,37 @@ def render_chart(
             "label": label,
             "value": value,
             "series": series,
+            "dataset_index": dataset_index,
+        }
+    })
+
+
+def render_dashboard(
+    title: str,
+    subtitle: str = "",
+    kpis: list = None,
+    charts: list = None,
+) -> str:
+    """Render an executive multi-chart analytics dashboard with KPI summary cards
+    and multiple charts from query results. Use this when the user requests a dashboard,
+    comprehensive analytics, portfolio breakdown, or multi-angle visualizations.
+
+    Parameters:
+      - title: Main title of the dashboard
+      - subtitle: Short summary or scope
+      - kpis: Array of KPI cards, e.g. [{"label": "Total Sales", "value": "PKR 45B", "subtext": "across 150 clients", "trend": "up"}]
+      - charts: Array of chart specs, each having {chart_type, title, x, y, label, value, series, dataset_index}
+    """
+    if kpis is None:
+        kpis = []
+    if charts is None:
+        charts = []
+    return json.dumps({
+        "dashboard_request": {
+            "title": title,
+            "subtitle": subtitle,
+            "kpis": kpis,
+            "charts": charts,
         }
     })
 
@@ -182,6 +213,7 @@ TOOL_DISPATCH = {
     "get_client_orr":     get_client_orr,
     "calculator":         calculator,
     "render_chart":       render_chart,
+    "render_dashboard":   render_dashboard,
     "get_current_datetime": get_current_datetime,
 }
 
@@ -291,9 +323,57 @@ TOOL_SCHEMAS = [
                     "y": {"type": "string", "description": "Numeric Y-axis column for bar, horizontal_bar, line, or scatter."},
                     "label": {"type": "string", "description": "Label/category column for donut/pie, or point labels for scatter."},
                     "value": {"type": "string", "description": "Numeric value column for donut/pie."},
-                    "series": {"type": "string", "description": "Optional grouping column for multi-series bar/line charts."}
+                    "series": {"type": "string", "description": "Optional grouping column for multi-series bar/line charts."},
+                    "dataset_index": {"type": "integer", "description": "0-based index of query result dataset to use (-1 for latest)."}
                 },
                 "required": ["chart_type", "title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "render_dashboard",
+            "description": render_dashboard.__doc__.strip(),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Executive dashboard title."},
+                    "subtitle": {"type": "string", "description": "Brief subtitle or description."},
+                    "kpis": {
+                        "type": "array",
+                        "description": "List of 2 to 4 KPI metric cards.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "label": {"type": "string"},
+                                "value": {"type": "string"},
+                                "subtext": {"type": "string"},
+                                "trend": {"type": "string", "enum": ["up", "down", "neutral"]}
+                            },
+                            "required": ["label", "value"]
+                        }
+                    },
+                    "charts": {
+                        "type": "array",
+                        "description": "List of chart specifications for the dashboard.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "chart_type": {"type": "string", "enum": ["bar", "horizontal_bar", "line", "donut", "pie", "scatter"]},
+                                "title": {"type": "string"},
+                                "x": {"type": "string"},
+                                "y": {"type": "string"},
+                                "label": {"type": "string"},
+                                "value": {"type": "string"},
+                                "series": {"type": "string"},
+                                "dataset_index": {"type": "integer", "description": "0-based index of query result (-1 for latest)"}
+                            },
+                            "required": ["chart_type", "title"]
+                        }
+                    }
+                },
+                "required": ["title"],
             },
         },
     },

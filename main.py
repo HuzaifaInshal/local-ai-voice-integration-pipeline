@@ -64,7 +64,8 @@ from db_setup import build_database
 MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-14B-AWQ")
 VLLM_PORT = 8000
 APP_PORT = 8080
-MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "4096"))  # lowered from 8192: T4s only report ~14.56 GiB usable, KV cache needs the headroom
+# 4096 context length allows full 2048-token generation + system prompt & tools
+MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "4096"))
 
 VLLM_HEALTH_URL = f"http://localhost:{VLLM_PORT}/health"
 
@@ -72,10 +73,14 @@ VLLM_HEALTH_URL = f"http://localhost:{VLLM_PORT}/health"
 def start_vllm():
     print(f"[main] Launching vLLM server for {MODEL_NAME} ...")
     env = os.environ.copy()
-    # T4 = Turing architecture: no FlashAttention-2, force xFormers backend & silence unsupported FlashInfer sampler
+    # T4 = Turing architecture: force xFormers backend & silence unsupported FlashInfer sampler
     env["VLLM_ATTENTION_BACKEND"] = "XFORMERS"
     env["VLLM_USE_FLASHINFER_SAMPLER"] = "0"
     env["VLLM_USE_V1"] = "0"
+    # CPU & NCCL inter-GPU synchronization tuning to prevent CPU thread lockup
+    env["OMP_NUM_THREADS"] = "4"
+    env["NCCL_P2P_DISABLE"] = "1"
+    env["PYTHONWARNINGS"] = "ignore"
 
     cmd = [
         sys.executable, "-m", "vllm.entrypoints.openai.api_server",
@@ -83,10 +88,11 @@ def start_vllm():
         "--tensor-parallel-size", "2",
         "--dtype", "float16",
         "--max-model-len", str(MAX_MODEL_LEN),
-        "--gpu-memory-utilization", "0.85",
-        "--enforce-eager",                      # skip CUDA graph capture -- frees ~2.3 GiB/GPU, tight T4s need this room
+        "--gpu-memory-utilization", "0.88",
+        "--max-num-batched-tokens", "2048",       # limits prefill peak memory
+        "--max-num-seqs", "4",                    # low latency sequence concurrency
         "--enable-auto-tool-choice",
-        "--tool-call-parser", "hermes",         # Hermes tool-call parser for native function calling (supported by Qwen2.5-7B-Instruct)
+        "--tool-call-parser", "hermes",
         "--host", "0.0.0.0",
         "--port", str(VLLM_PORT),
         "--trust-remote-code",
@@ -94,7 +100,7 @@ def start_vllm():
 
     # Conditionally add AWQ quantization flag if loading an AWQ model
     if "awq" in MODEL_NAME.lower():
-        cmd.extend(["--quantization", "awq"])   # plain AWQ kernel; awq_marlin needs Ampere+, not Turing/T4
+        cmd.extend(["--quantization", "awq"])
 
     # Conditionally add Qwen3 reasoning parser if loading a Qwen3 reasoning model
     if "qwen3" in MODEL_NAME.lower():
@@ -112,7 +118,14 @@ def wait_for_vllm(timeout_s=1800):
         try:
             r = requests.get(VLLM_HEALTH_URL, timeout=3)
             if r.status_code == 200:
-                print("[main] vLLM is healthy.")
+                print("[main] vLLM is healthy. Running Triton kernel warmup request...")
+                try:
+                    warmup_url = f"http://localhost:{VLLM_PORT}/v1/chat/completions"
+                    payload = {"model": MODEL_NAME, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 5}
+                    requests.post(warmup_url, json=payload, timeout=45)
+                    print("[main] vLLM Triton kernel warmup complete.")
+                except Exception as e:
+                    print(f"[main] Warmup warning: {e}")
                 return True
         except requests.exceptions.RequestException:
             pass
