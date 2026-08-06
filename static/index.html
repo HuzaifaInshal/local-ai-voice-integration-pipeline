@@ -931,8 +931,25 @@
     }
 
     #sendBtn:disabled {
-      opacity: 0.5;
+      opacity: 0.8;
       cursor: not-allowed;
+    }
+
+    .btn-loader {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      display: inline-block;
+      vertical-align: middle;
+      animation: btnSpin 0.7s infinite linear;
+    }
+
+    @keyframes btnSpin {
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     /* Sub-text hint */
@@ -941,6 +958,124 @@
       font-size: 11px;
       color: var(--text-muted);
       padding-bottom: 8px;
+    }
+
+    /* Full-Screen Chart Modal */
+    .chart-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    .chart-modal-backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .chart-modal-content {
+      background: #ffffff;
+      border-radius: 20px;
+      width: min(1200px, 94vw);
+      height: min(780px, 90vh);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+      transform: scale(0.95);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .chart-modal-backdrop.active .chart-modal-content {
+      transform: scale(1);
+    }
+
+    .chart-modal-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f8fafc;
+    }
+
+    .chart-modal-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .chart-modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .chart-modal-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .chart-modal-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .chart-modal-close-btn {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 18px;
+      color: var(--text-muted);
+      transition: all 0.2s ease;
+    }
+
+    .chart-modal-close-btn:hover {
+      background: #ef4444;
+      color: #ffffff;
+      border-color: #dc2626;
+    }
+
+    .chart-modal-body {
+      flex: 1;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      overflow: hidden;
+    }
+
+    .modal-chart-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Hover Zoom Affordance for Charts */
+    .chart-canvas, .dashboard-chart-card {
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .chart-canvas:hover, .dashboard-chart-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
     }
   </style>
 </head>
@@ -1642,6 +1777,10 @@
     let activeReasoningStartTime = null;
 
     function appendReasoningToken(text) {
+      if (!text) return;
+      const cleaned = text.replace(/<\/?think>/gi, "");
+      if (!cleaned) return;
+
       if (!activeReasoningBox) {
         activeReasoningStartTime = Date.now();
         const details = document.createElement("details");
@@ -1661,19 +1800,23 @@
 
         chatContainer.appendChild(details);
       }
-      activeReasoningPre.textContent += text;
+      activeReasoningPre.textContent += cleaned;
       chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
     function finalizeActiveReasoning() {
       if (activeReasoningBox) {
-        activeReasoningBox.classList.remove("thinking");
-        if (activeReasoningSummary) {
-          const elapsedSec = activeReasoningStartTime ? ((Date.now() - activeReasoningStartTime) / 1000).toFixed(1) : null;
-          const timeStr = elapsedSec ? ` (${elapsedSec}s)` : "";
-          activeReasoningSummary.innerHTML = `<span>🧠</span> Thought Process${timeStr}`;
+        if (!activeReasoningPre || !activeReasoningPre.textContent.trim()) {
+          activeReasoningBox.remove();
+        } else {
+          activeReasoningBox.classList.remove("thinking");
+          if (activeReasoningSummary) {
+            const elapsedSec = activeReasoningStartTime ? ((Date.now() - activeReasoningStartTime) / 1000).toFixed(1) : null;
+            const timeStr = elapsedSec ? ` (${elapsedSec}s)` : "";
+            activeReasoningSummary.innerHTML = `<span>🧠</span> Thought Process${timeStr}`;
+          }
+          activeReasoningBox.open = false;
         }
-        activeReasoningBox.open = false;
         activeReasoningBox = null;
         activeReasoningPre = null;
         activeReasoningSummary = null;
@@ -1785,6 +1928,7 @@
       addMsg("user", trimmed);
       input.value = "";
       sendBtn.disabled = true;
+      sendBtn.innerHTML = `<span class="btn-loader"></span>`;
 
       activeReasoningBox = null;
       activeReasoningPre = null;
@@ -1793,6 +1937,15 @@
 
       const typingEl = addTypingIndicator();
       let botBubble = null;
+
+      function finalizeBotBubble() {
+        if (botBubble) {
+          if (!botBubble.dataset.rawMarkdown || !botBubble.dataset.rawMarkdown.trim()) {
+            botBubble.remove();
+          }
+          botBubble = null;
+        }
+      }
 
       try {
         const res = await fetch("/api/chat/stream", {
@@ -1823,32 +1976,32 @@
             try { event = JSON.parse(payload); } catch { continue; }
 
             if (event.type === "reasoning") {
-              botBubble = null; // New reasoning phase detaches previous bot text bubble
+              finalizeBotBubble();
               if (typingEl.parentNode) typingEl.remove();
               appendReasoningToken(event.text);
             } else if (event.type === "tool") {
               finalizeActiveReasoning();
-              botBubble = null;
+              finalizeBotBubble();
               if (typingEl.parentNode) typingEl.remove();
               addTrace(event);
             } else if (event.type === "table") {
               finalizeActiveReasoning();
-              botBubble = null;
+              finalizeBotBubble();
               if (typingEl.parentNode) typingEl.remove();
               addTableArtifact(event);
             } else if (event.type === "chart") {
               finalizeActiveReasoning();
-              botBubble = null;
+              finalizeBotBubble();
               if (typingEl.parentNode) typingEl.remove();
               addChartArtifact(event);
             } else if (event.type === "dashboard") {
               finalizeActiveReasoning();
-              botBubble = null;
+              finalizeBotBubble();
               if (typingEl.parentNode) typingEl.remove();
               addDashboardArtifact(event);
             } else if (event.type === "diagram") {
               finalizeActiveReasoning();
-              botBubble = null;
+              finalizeBotBubble();
               if (typingEl.parentNode) typingEl.remove();
               addDiagramArtifact(event);
             } else if (event.type === "token") {
@@ -1858,7 +2011,7 @@
               appendToken(botBubble, event.text);
             } else if (event.type === "error") {
               finalizeActiveReasoning();
-              botBubble = null;
+              finalizeBotBubble();
               if (typingEl.parentNode) typingEl.remove();
               addMsg("bot", "Error: " + event.message);
             }
@@ -1866,11 +2019,14 @@
         }
       } catch (e) {
         finalizeActiveReasoning();
+        finalizeBotBubble();
         if (typingEl.parentNode) typingEl.remove();
         addMsg("bot", "Error: " + e.message);
       } finally {
         finalizeActiveReasoning();
+        finalizeBotBubble();
         sendBtn.disabled = false;
+        sendBtn.innerHTML = "Send";
         // Reset voice state to listen for wake word again
         resetVoiceStateToIdle();
       }

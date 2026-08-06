@@ -267,7 +267,11 @@ async def run_agent_stream(session_id: str, user_message: str):
             # 1. Direct reasoning_content field (from vLLM reasoning parser)
             reasoning = getattr(delta, "reasoning_content", None)
             if not reasoning and hasattr(delta, "model_extra") and delta.model_extra:
-                reasoning = delta.model_extra.get("reasoning_content")
+                reasoning = (
+                    delta.model_extra.get("reasoning_content")
+                    or delta.model_extra.get("thinking")
+                    or delta.model_extra.get("reasoning")
+                )
 
             if reasoning:
                 yield {"type": "reasoning", "text": reasoning}
