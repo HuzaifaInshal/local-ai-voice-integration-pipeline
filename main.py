@@ -65,7 +65,7 @@ MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3-14B-AWQ")
 VLLM_PORT = 8000
 APP_PORT = 8080
 # 4096 context length allows full 2048-token generation + system prompt & tools
-MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "4096"))
+MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "8192"))
 
 VLLM_HEALTH_URL = f"http://localhost:{VLLM_PORT}/health"
 
